@@ -213,7 +213,7 @@ const handleLogin = async () => {
     
     if (result.success) {
       ElMessage.success('登录成功！')
-      router.push('/dashboard')
+      router.push('/')
     } else {
       ElMessage.error(result.error || '登录失败，请重试')
     }
