@@ -11,14 +11,7 @@
         </div>
       </div>
       <div class="header-right">
-        <el-button-group>
-          <el-button @click="showOKRModal = true" type="primary" :icon="Aim">
-            设定OKR
-          </el-button>
-          <el-button @click="showPlanModal = true" type="success" :icon="Calendar">
-            学习计划
-          </el-button>
-        </el-button-group>
+
         <el-dropdown @command="handleCommand">
           <el-button :icon="Setting" circle />
           <template #dropdown>
@@ -70,16 +63,11 @@
             <div class="card-header">
               <el-icon class="card-icon"><Aim /></el-icon>
               <h3>学习目标概览</h3>
-              <el-button @click="showOKRModal = true" type="text" :icon="Plus">
-                新建
-              </el-button>
             </div>
             <div class="card-content">
               <div v-if="!currentOKR" class="empty-state">
                 <el-empty description="还没有设定学习目标">
-                  <el-button type="primary" @click="showOKRModal = true">
-                    立即设定OKR
-                  </el-button>
+                  <p style="color: #999; font-size: 0.9rem;">请联系管理员设定学习目标</p>
                 </el-empty>
               </div>
               <div v-else class="okr-display">
@@ -387,24 +375,43 @@
     </main>
 
     <!-- 模态框 -->
-    <!-- OKR设置模态框 -->
-    <el-dialog v-model="showOKRModal" title="设定学习目标" width="600px">
-      <OKRModal @okr-saved="handleOKRSaved" />
-    </el-dialog>
 
-    <!-- 学习计划模态框 -->
-    <el-dialog v-model="showPlanModal" title="学习计划详情" width="800px">
-      <PlanModal :tasks="todayTasks" @plan-updated="refreshTasks" />
-    </el-dialog>
 
     <!-- 进度详情模态框 -->
     <el-dialog v-model="showProgressModal" title="学习进度报告" width="900px">
-      <PlanModal :tasks="todayTasks" @plan-updated="refreshTasks" />
+      <div class="progress-content">
+        <h3>本周学习进度</h3>
+        <el-progress :percentage="weeklyProgress" :stroke-width="12" />
+        <h3>本月学习进度</h3>
+        <el-progress :percentage="monthlyProgress" :stroke-width="12" />
+        <div class="progress-stats">
+          <p>本周学习时长：{{ weeklyStudyHours.reduce((sum, day) => sum + day.hours, 0).toFixed(1) }} 小时</p>
+          <p>平均每日学习：{{ (weeklyStudyHours.reduce((sum, day) => sum + day.hours, 0) / 7).toFixed(1) }} 小时</p>
+        </div>
+      </div>
     </el-dialog>
 
     <!-- 成长分析模态框 -->
     <el-dialog v-model="showGrowthModal" title="个人成长分析" width="800px">
-      <PlanModal :tasks="todayTasks" @plan-updated="refreshTasks" />
+      <div class="growth-content">
+        <h3>学习能力提升</h3>
+        <div class="growth-item">
+          <span>编程技能</span>
+          <el-progress :percentage="85" :stroke-width="8" />
+        </div>
+        <div class="growth-item">
+          <span>算法思维</span>
+          <el-progress :percentage="72" :stroke-width="8" />
+        </div>
+        <div class="growth-item">
+          <span>项目经验</span>
+          <el-progress :percentage="68" :stroke-width="8" />
+        </div>
+        <div class="growth-item">
+          <span>团队协作</span>
+          <el-progress :percentage="78" :stroke-width="8" />
+        </div>
+      </div>
     </el-dialog>
   </div>
 </template>
@@ -416,18 +423,14 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { 
   Aim, Calendar, ChatDotRound, Setting, Plus, Refresh, 
   View, TrendCharts, Reading, User, VideoPlay, Document, 
-  School, Link, More, Star, Light, Warning
+  School, Link, More, Star, Warning
 } from '@element-plus/icons-vue'
 
-// 组件导入
-import OKRModal from '../components/OKRModal.vue'
-import PlanModal from '../components/PlanModal.vue'
+
 
 const router = useRouter()
 
 // 响应式数据
-const showOKRModal = ref(false)
-const showPlanModal = ref(false)
 const showProgressModal = ref(false)
 const showGrowthModal = ref(false)
 const showQuickActions = ref(false)
@@ -591,12 +594,7 @@ const handleCommand = async (command) => {
   }
 }
 
-const handleOKRSaved = (okrData) => {
-  currentOKR.value = okrData
-  showOKRModal.value = false
-  ElMessage.success('OKR设置成功！')
-  refreshTasks()
-}
+
 
 const refreshTasks = () => {
   ElMessage.success('任务已刷新')
@@ -1276,6 +1274,61 @@ onMounted(() => {
   .logo {
     font-size: 1.5rem;
   }
+}
+
+/* 进度和成长模态框样式 */
+.progress-content,
+.growth-content {
+  padding: 20px;
+}
+
+.progress-content h3,
+.growth-content h3 {
+  color: #333;
+  margin-bottom: 16px;
+  font-size: 1.1rem;
+}
+
+.progress-content .el-progress {
+  margin-bottom: 24px;
+}
+
+.progress-stats {
+  margin-top: 20px;
+  padding: 16px;
+  background: #f8f9fa;
+  border-radius: 12px;
+}
+
+.progress-stats p {
+  margin: 8px 0;
+  color: #666;
+  font-size: 0.95rem;
+}
+
+.growth-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.growth-item:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.growth-item span {
+  font-weight: 500;
+  color: #333;
+  min-width: 100px;
+}
+
+.growth-item .el-progress {
+  flex: 1;
+  margin-left: 20px;
 }
 
 /* 动画效果 */
