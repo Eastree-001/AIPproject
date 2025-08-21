@@ -5,6 +5,7 @@
     
     <!-- 主要内容区域 -->
     <main class="main-content">
+
       <!-- 英雄区域 -->
       <section class="hero-section">
         <div class="hero-container">
@@ -14,7 +15,7 @@
               <span class="highlight">启明星</span>
             </h1>
             <p class="hero-subtitle">
-              AI驱动的智慧学习平台，让学习更智能、更高效、更有趣
+              AI驱动的智慧学习平台，让学习更智能、更高效、更有趣。
             </p>
             <div class="hero-actions">
               <el-button 
