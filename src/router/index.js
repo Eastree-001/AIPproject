@@ -13,7 +13,17 @@ const routes = [
     component: () => import('../views/Auth.vue'),
     meta: { requiresGuest: true }
   },
-
+  {
+    path: '/supabase-test',
+    name: 'SupabaseTest',
+    component: () => import('../views/SupabaseTest.vue')
+  },
+  {
+    path: '/dashboard',
+    name: 'Dashboard',
+    component: () => import('../views/StudentDashboard.vue'),
+    meta: { requiresAuth: true }
+  },
   {
     path: '/student-dashboard',
     name: 'StudentDashboard',
@@ -60,9 +70,9 @@ router.beforeEach((to, from, next) => {
   else if (to.path === '/' && !authStore.isAuthenticated) {
     next('/auth')
   }
-  // 如果已登录用户访问登录页，跳转到首页
+  // 如果已登录用户访问登录页，跳转到仪表板
   else if (to.meta.requiresGuest && authStore.isAuthenticated) {
-    next('/')
+    next('/dashboard')
   } 
   // 其他情况正常通过
   else {

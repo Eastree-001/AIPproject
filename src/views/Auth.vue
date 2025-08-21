@@ -1,5 +1,8 @@
 <template>
   <div class="auth-container">
+    <!-- 认证调试组件 -->
+    <AuthDebug />
+    
     <div class="auth-card">
       <!-- Logo区域 -->
       <div class="logo-section fade-in-up">
@@ -94,6 +97,15 @@
                   />
                 </el-form-item>
 
+                <el-form-item label="姓名" prop="name">
+                  <el-input 
+                    v-model="registerForm.name" 
+                    placeholder="请输入您的姓名"
+                    prefix-icon="User"
+                    size="large"
+                  />
+                </el-form-item>
+
                 <el-form-item>
                   <el-button 
                     type="primary" 
@@ -131,10 +143,12 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '../stores/auth'
+import { testConnection } from '../lib/supabase'
+import AuthDebug from '../components/AuthDebug.vue'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -155,7 +169,8 @@ const loginForm = reactive({
 const registerForm = reactive({
   email: '',
   password: '',
-  confirmPassword: ''
+  confirmPassword: '',
+  name: ''
 })
 
 // 表单验证规则
@@ -191,8 +206,26 @@ const registerRules = {
       },
       trigger: 'blur'
     }
+  ],
+  name: [
+    { required: true, message: '请输入姓名', trigger: 'blur' },
+    { min: 2, message: '姓名长度不能少于2位', trigger: 'blur' }
   ]
 }
+
+// 组件挂载时测试连接
+onMounted(async () => {
+  try {
+    const isConnected = await testConnection()
+    if (isConnected) {
+      console.log('✅ Supabase 连接正常')
+    } else {
+      console.warn('⚠️ Supabase 连接异常')
+    }
+  } catch (error) {
+    console.error('❌ Supabase 连接测试失败:', error)
+  }
+})
 
 // 方法
 const handleTabClick = () => {
@@ -202,6 +235,7 @@ const handleTabClick = () => {
   registerForm.email = ''
   registerForm.password = ''
   registerForm.confirmPassword = ''
+  registerForm.name = ''
 }
 
 const handleLogin = async () => {
@@ -209,16 +243,24 @@ const handleLogin = async () => {
     await loginFormRef.value.validate()
     loginLoading.value = true
     
+    console.log('开始登录流程...')
+    console.log('登录表单数据:', { email: loginForm.email, password: '***' })
+    
     const result = await authStore.login(loginForm.email, loginForm.password)
     
+    console.log('登录结果:', result)
+    
     if (result.success) {
-      ElMessage.success('登录成功！')
-      router.push('/')
+      ElMessage.success('登录成功！欢迎回来！')
+      console.log('登录成功，准备跳转到仪表板')
+      router.push('/dashboard')
     } else {
-      ElMessage.error(result.error || '登录失败，请重试')
+      ElMessage.error(result.error || '登录失败，请检查邮箱和密码')
+      console.error('登录失败:', result.error)
     }
   } catch (error) {
     console.error('登录验证失败:', error)
+    ElMessage.error('登录失败，请重试')
   } finally {
     loginLoading.value = false
   }
@@ -229,20 +271,45 @@ const handleRegister = async () => {
     await registerFormRef.value.validate()
     registerLoading.value = true
     
+    console.log('开始注册流程...')
+    console.log('注册表单数据:', { 
+      email: registerForm.email, 
+      password: '***', 
+      name: registerForm.name 
+    })
+    
+    // 准备用户数据
+    const userData = {
+      name: registerForm.name,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${registerForm.name}`
+    }
+    
     const result = await authStore.register(
       registerForm.email, 
       registerForm.password, 
-      registerForm.confirmPassword
+      userData
     )
     
+    console.log('注册结果:', result)
+    
     if (result.success) {
-      ElMessage.success('注册成功！')
-      router.push('/dashboard')
+      ElMessage.success('注册成功！欢迎加入启明星平台！')
+      // 注册成功后自动切换到登录标签
+      activeTab.value = 'login'
+      // 清空注册表单
+      registerForm.email = ''
+      registerForm.password = ''
+      registerForm.confirmPassword = ''
+      registerForm.name = ''
+      // 将邮箱填入登录表单
+      loginForm.email = result.user.email
     } else {
       ElMessage.error(result.error || '注册失败，请重试')
+      console.error('注册失败:', result.error)
     }
   } catch (error) {
     console.error('注册验证失败:', error)
+    ElMessage.error('注册失败，请重试')
   } finally {
     registerLoading.value = false
   }
@@ -252,7 +319,7 @@ const handleRegister = async () => {
 <style scoped>
 .auth-container {
   min-height: 100vh;
-  background: #ffffff;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -262,11 +329,12 @@ const handleRegister = async () => {
 .auth-card {
   background: #ffffff;
   border-radius: 24px;
-  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
   padding: 40px;
   width: 100%;
   max-width: 480px;
   border: 1px solid #f0f0f0;
+  backdrop-filter: blur(10px);
 }
 
 .logo-section {
@@ -276,7 +344,10 @@ const handleRegister = async () => {
 
 .logo {
   font-size: 2.5rem;
-  color: #409EFF;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
   margin-bottom: 12px;
   font-weight: 700;
 }
@@ -304,6 +375,14 @@ const handleRegister = async () => {
   height: 48px;
   font-size: 16px;
   font-weight: 500;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  transition: all 0.3s ease;
+}
+
+.submit-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
 }
 
 .features-section {
@@ -324,7 +403,7 @@ const handleRegister = async () => {
 
 .feature-icon {
   font-size: 1.5rem;
-  color: #409EFF;
+  color: #667eea;
 }
 
 /* 响应式设计 */
@@ -357,12 +436,12 @@ const handleRegister = async () => {
 }
 
 :deep(.el-tabs__item.is-active) {
-  color: #409EFF;
+  color: #667eea;
   font-weight: 600;
 }
 
 :deep(.el-tabs__active-bar) {
-  background-color: #409EFF;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   height: 3px;
   border-radius: 2px;
 }
@@ -381,10 +460,26 @@ const handleRegister = async () => {
 }
 
 :deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px #409EFF inset;
+  box-shadow: 0 0 0 1px #667eea inset;
 }
 
 :deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #409EFF inset;
+  box-shadow: 0 0 0 1px #667eea inset;
+}
+
+/* 动画效果 */
+.fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 </style>

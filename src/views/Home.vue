@@ -104,6 +104,32 @@
               </div>
             </div>
           </div>
+          
+          <!-- 开发工具区域 -->
+          <div class="dev-tools" v-if="showDevTools">
+            <div class="section-header">
+              <h3 class="section-title">开发工具</h3>
+              <p class="section-subtitle">用于开发和调试的实用工具</p>
+            </div>
+            
+            <div class="dev-tools-grid">
+              <div class="dev-tool-card" @click="goToSupabaseTest">
+                <div class="tool-icon">
+                  <el-icon size="32"><Database /></el-icon>
+                </div>
+                <h4>Supabase 测试</h4>
+                <p>测试数据库连接和基本功能</p>
+              </div>
+              
+              <div class="dev-tool-card" @click="goToAuth">
+                <div class="tool-icon">
+                  <el-icon size="32"><UserFilled /></el-icon>
+                </div>
+                <h4>认证测试</h4>
+                <p>测试用户注册和登录功能</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
     </main>
@@ -175,7 +201,8 @@ import {
   Star,
   Lightning,
   Aim,
-  Histogram
+  Histogram,
+  Database
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -246,6 +273,17 @@ const startLearning = () => {
 const watchDemo = () => {
   // 显示演示视频
   console.log('显示演示视频')
+}
+
+// 开发工具相关
+const showDevTools = ref(true) // 开发阶段显示开发工具
+
+const goToSupabaseTest = () => {
+  router.push('/supabase-test')
+}
+
+const goToAuth = () => {
+  router.push('/auth')
 }
 </script>
 
@@ -562,6 +600,62 @@ const watchDemo = () => {
 .step-description {
   color: #666;
   line-height: 1.6;
+}
+
+/* 开发工具区域 */
+.dev-tools {
+  margin-top: 80px;
+  padding: 60px 0;
+  background: #e0e0e0;
+  border-radius: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+}
+
+.dev-tools-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 30px;
+}
+
+.dev-tool-card {
+  background: white;
+  border-radius: 15px;
+  padding: 30px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+  border: 1px solid #f0f0f0;
+}
+
+.dev-tool-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.tool-icon {
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.dev-tool-card h4 {
+  font-size: 1.3rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.dev-tool-card p {
+  color: #666;
+  font-size: 0.95rem;
+  line-height: 1.5;
 }
 
 /* 页脚 */
