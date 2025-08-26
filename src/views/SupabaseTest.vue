@@ -79,9 +79,8 @@ import {
   Close, 
   Warning, 
   InfoFilled,
-  Connection,
   User,
-  Database
+  DataBoard
 } from '@element-plus/icons-vue'
 import { 
   checkEnvironmentVariables, 
@@ -216,7 +215,7 @@ const testDatabase = async () => {
         addResult('error', `数据库查询失败: ${error.message}`, Close)
       }
     } else {
-      addResult('success', '数据库查询成功', Database)
+      addResult('success', '数据库查询成功', DataBoard)
     }
     
     ElMessage.success('数据库功能测试完成！')
