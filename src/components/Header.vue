@@ -45,6 +45,18 @@
               学习社区
             </router-link>
           </li>
+          <li class="nav-item">
+            <router-link to="/notifications" class="nav-link" active-class="active">
+              <el-icon><Bell /></el-icon>
+              通知中心
+            </router-link>
+          </li>
+          <li class="nav-item">
+            <router-link to="/learning-records" class="nav-link" active-class="active">
+              <el-icon><Document /></el-icon>
+              学习记录
+            </router-link>
+          </li>
         </ul>
       </nav>
 
@@ -98,6 +110,14 @@
                 <el-dropdown-item command="settings">
                   <el-icon><Setting /></el-icon>
                   设置
+                </el-dropdown-item>
+                <el-dropdown-item command="notifications">
+                  <el-icon><Bell /></el-icon>
+                  通知中心
+                </el-dropdown-item>
+                <el-dropdown-item command="learning-records">
+                  <el-icon><Document /></el-icon>
+                  学习记录
                 </el-dropdown-item>
                 <el-dropdown-item command="help">
                   <el-icon><QuestionFilled /></el-icon>
@@ -186,6 +206,18 @@
               学习社区
             </router-link>
           </li>
+          <li class="mobile-nav-item">
+            <router-link to="/notifications" class="mobile-nav-link" @click="toggleMobileMenu">
+              <el-icon><Bell /></el-icon>
+              通知中心
+            </router-link>
+          </li>
+          <li class="mobile-nav-item">
+            <router-link to="/learning-records" class="mobile-nav-link" @click="toggleMobileMenu">
+              <el-icon><Document /></el-icon>
+              学习记录
+            </router-link>
+          </li>
         </ul>
       </nav>
     </div>
@@ -210,7 +242,8 @@ import {
   QuestionFilled,
   SwitchButton,
   Menu,
-  Close
+  Close,
+  Document
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 
@@ -238,8 +271,8 @@ const handleSearch = () => {
 }
 
 const showNotifications = () => {
-  // 显示通知面板
-  console.log('显示通知')
+  // 跳转到通知中心页面
+  router.push('/notifications')
 }
 
 const handleUserCommand = (command) => {
@@ -249,6 +282,12 @@ const handleUserCommand = (command) => {
       break
     case 'settings':
       router.push('/settings')
+      break
+    case 'notifications':
+      router.push('/notifications')
+      break
+    case 'learning-records':
+      router.push('/learning-records')
       break
     case 'help':
       router.push('/help')
@@ -345,12 +384,16 @@ const toggleMobileMenu = () => {
   flex: 1;
   display: flex;
   justify-content: center;
+  min-width: 0;
 }
 
 .nav-list {
   display: flex;
   list-style: none;
-  gap: 8px;
+  gap: 6px;
+  flex-wrap: nowrap;
+  justify-content: center;
+  align-items: center;
 }
 
 .nav-item {
@@ -360,14 +403,16 @@ const toggleMobileMenu = () => {
 .nav-link {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 12px 20px;
+  gap: 4px;
+  padding: 10px 16px;
   text-decoration: none;
   color: #333;
   font-weight: 500;
   border-radius: 25px;
   transition: all 0.3s ease;
   position: relative;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .nav-link:hover {
@@ -383,23 +428,25 @@ const toggleMobileMenu = () => {
 }
 
 .nav-link .el-icon {
-  font-size: 16px;
+  font-size: 14px;
 }
 
 /* 右侧功能区 */
 .header-right {
   display: flex;
   align-items: center;
-  gap: 20px;
+  gap: 15px;
+  flex-shrink: 0;
 }
 
 /* 搜索框 */
 .search-box {
   position: relative;
+  flex-shrink: 0;
 }
 
 .search-input {
-  width: 280px;
+  width: 240px;
 }
 
 .search-input :deep(.el-input__wrapper) {
@@ -577,7 +624,12 @@ const toggleMobileMenu = () => {
   }
   
   .nav-link {
-    padding: 10px 16px;
+    padding: 8px 12px;
+    font-size: 14px;
+  }
+  
+  .nav-list {
+    gap: 4px;
   }
 }
 

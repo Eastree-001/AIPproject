@@ -64,7 +64,7 @@ import { useAuthStore } from '../stores/auth'
 
 const authStore = useAuthStore()
 const logs = ref([])
-const showDebug = ref(true) // 开发阶段显示
+const showDebug = ref(false) // 开发阶段显示
 
 // 从认证存储获取状态
 const user = computed(() => authStore.user)

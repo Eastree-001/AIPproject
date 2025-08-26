@@ -1,0 +1,260 @@
+{
+  "name": "学习进度记录工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "learning-progress",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "progress-webhook",
+      "name": "进度记录Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "learning-progress"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 验证和预处理进度数据\nconst { userId, courseId, lessonId, progress, duration, completed } = $input.first().json;\n\n// 验证必要字段\nif (!userId || !courseId || !lessonId) {\n  throw new Error('缺少必要字段');\n}\n\n// 计算学习时长（分钟）\nconst durationMinutes = duration ? Math.round(duration / 60) : 0;\n\n// 生成时间戳\nconst timestamp = new Date().toISOString();\n\nreturn {\n  userId,\n  courseId,\n  lessonId,\n  progress: Math.min(100, Math.max(0, progress || 0)),\n  durationMinutes,\n  completed: completed || false,\n  timestamp,\n  metadata: {\n    userAgent: $input.first().headers['user-agent'],\n    ipAddress: $input.first().headers['x-forwarded-for'] || $input.first().headers['x-real-ip']\n  }\n};"
+      },
+      "id": "process-progress",
+      "name": "处理进度数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "learning_progress",
+        "columns": "={\n  user_id: $json.userId,\n  course_id: $json.courseId,\n  lesson_id: $json.lessonId,\n  progress: $json.progress,\n  duration_minutes: $json.durationMinutes,\n  completed: $json.completed,\n  updated_at: $json.timestamp,\n  metadata: $json.metadata\n}",
+        "upsertFields": "user_id,course_id,lesson_id",
+        "returnFields": "*"
+      },
+      "id": "save-progress",
+      "name": "保存进度到数据库",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "learning_progress",
+        "columns": "={\n  user_id: $json.userId,\n  course_id: $json.courseId\n}",
+        "returnFields": "*"
+      },
+      "id": "get-course-progress",
+      "name": "获取课程总进度",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [900, 200],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 计算课程总进度\nconst progressRecords = $input.first().json;\nconst totalLessons = progressRecords.length;\nconst completedLessons = progressRecords.filter(r => r.completed).length;\nconst totalProgress = progressRecords.reduce((sum, r) => sum + r.progress, 0) / totalLessons;\nconst totalDuration = progressRecords.reduce((sum, r) => sum + (r.duration_minutes || 0), 0);\n\nreturn {\n  courseId: progressRecords[0]?.course_id,\n  userId: progressRecords[0]?.user_id,\n  totalLessons,\n  completedLessons,\n  averageProgress: Math.round(totalProgress),\n  totalDurationMinutes: totalDuration,\n  lastUpdated: new Date().toISOString()\n};"
+      },
+      "id": "calculate-course-stats",
+      "name": "计算课程统计",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1120, 200]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "course_progress_summary",
+        "columns": "={\n  user_id: $json.userId,\n  course_id: $json.courseId,\n  total_lessons: $json.totalLessons,\n  completed_lessons: $json.completedLessons,\n  average_progress: $json.averageProgress,\n  total_duration_minutes: $json.totalDurationMinutes,\n  updated_at: $json.lastUpdated\n}",
+        "upsertFields": "user_id,course_id",
+        "returnFields": "*"
+      },
+      "id": "update-course-summary",
+      "name": "更新课程进度摘要",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1340, 200],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 检查是否完成课程\nconst courseSummary = $input.first().json;\nconst isCourseCompleted = courseSummary.completed_lessons === courseSummary.total_lessons;\n\n// 如果课程完成，检查是否需要发放成就\nif (isCourseCompleted) {\n  return {\n    userId: courseSummary.user_id,\n    courseId: courseSummary.course_id,\n    achievementType: 'course_completion',\n    achievementData: {\n      courseName: '课程名称', // 这里可以从课程表获取\n      completedAt: new Date().toISOString(),\n      totalDuration: courseSummary.total_duration_minutes\n    }\n  };\n}\n\nreturn null;"
+      },
+      "id": "check-achievement",
+      "name": "检查成就",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1560, 200]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "table": "achievements",
+        "columns": "={\n  user_id: $json.userId,\n  type: $json.achievementType,\n  data: $json.achievementData,\n  earned_at: new Date().toISOString()\n}",
+        "returnFields": "*"
+      },
+      "id": "create-achievement",
+      "name": "创建成就记录",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1780, 200],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 生成响应数据\nconst progressData = $input.first().json;\nconst courseStats = $input.all()[1]?.json;\nconst achievement = $input.all()[2]?.json;\n\nreturn {\n  success: true,\n  message: '学习进度记录成功',\n  data: {\n    progress: progressData,\n    courseStats,\n    achievement: achievement || null\n  }\n};"
+      },
+      "id": "generate-response",
+      "name": "生成响应",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [2000, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "respond",
+      "name": "响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2220, 300]
+    }
+  ],
+  "connections": {
+    "进度记录Webhook": {
+      "main": [
+        [
+          {
+            "node": "处理进度数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理进度数据": {
+      "main": [
+        [
+          {
+            "node": "保存进度到数据库",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "保存进度到数据库": {
+      "main": [
+        [
+          {
+            "node": "获取课程总进度",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取课程总进度": {
+      "main": [
+        [
+          {
+            "node": "计算课程统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "计算课程统计": {
+      "main": [
+        [
+          {
+            "node": "更新课程进度摘要",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "更新课程进度摘要": {
+      "main": [
+        [
+          {
+            "node": "检查成就",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查成就": {
+      "main": [
+        [
+          {
+            "node": "创建成就记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "创建成就记录": {
+      "main": [
+        [
+          {
+            "node": "生成响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "生成响应": {
+      "main": [
+        [
+          {
+            "node": "响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "learning-progress-workflow",
+  "tags": ["学习记录", "进度管理", "成就系统"]
+}

@@ -10,30 +10,70 @@
       <section class="hero-section">
         <div class="hero-container">
           <div class="hero-content">
-            <h1 class="hero-title">
-              欢迎来到
-              <span class="highlight">启明星</span>
-            </h1>
-            <p class="hero-subtitle">
-              AI驱动的智慧学习平台，让学习更智能、更高效、更有趣。
-            </p>
-            <div class="hero-actions">
-              <el-button 
-                type="primary" 
-                size="large" 
-                class="cta-button"
-                @click="startLearning"
-              >
-                开始学习
-              </el-button>
-              <el-button 
-                type="info" 
-                size="large" 
-                class="demo-button"
-                @click="watchDemo"
-              >
-                观看演示
-              </el-button>
+            <!-- 已登录用户的个性化欢迎 -->
+            <div v-if="isAuthenticated" class="authenticated-welcome">
+              <h1 class="hero-title">
+                欢迎回来，
+                <span class="highlight">{{ userInfo?.user_metadata?.name || userInfo?.email?.split('@')[0] || '同学' }}</span>
+              </h1>
+              <p class="hero-subtitle">
+                继续您的智慧学习之旅，AI导师随时为您服务。
+              </p>
+              <div class="hero-actions">
+                <el-button 
+                  type="primary" 
+                  size="large" 
+                  class="cta-button"
+                  @click="goToCourses"
+                >
+                  浏览课程
+                </el-button>
+                <el-button 
+                  type="success" 
+                  size="large" 
+                  class="cta-button"
+                  @click="goToAITutor"
+                >
+                  AI导师
+                </el-button>
+                <el-button 
+                  type="warning" 
+                  size="large" 
+                  class="cta-button"
+                  @click="goToProgress"
+                >
+                  学习进度
+                </el-button>
+              </div>
+            </div>
+            
+            <!-- 未登录用户的欢迎 -->
+            <div v-else class="guest-welcome">
+              <h1 class="hero-title">
+                欢迎来到
+                <span class="highlight">启明星</span>
+              </h1>
+              <p class="hero-subtitle">
+                AI驱动的智慧学习平台，让学习更智能、更高效、更有趣。
+              </p>
+              <div class="hero-actions">
+                <el-button 
+                  type="primary" 
+                  size="large" 
+                  class="cta-button"
+                  @click="startLearning"
+                >
+                  开始学习
+                </el-button>
+                <el-button 
+                  type="info" 
+                  size="large" 
+                  class="demo-button"
+                  @click="watchDemo"
+                >
+                  观看演示
+                </el-button>
+              </div>
             </div>
           </div>
           <div class="hero-visual">
@@ -115,7 +155,7 @@
             <div class="dev-tools-grid">
               <div class="dev-tool-card" @click="goToSupabaseTest">
                 <div class="tool-icon">
-                  <el-icon size="32"><Database /></el-icon>
+                  <el-icon size="32"><Monitor /></el-icon>
                 </div>
                 <h4>Supabase 测试</h4>
                 <p>测试数据库连接和基本功能</p>
@@ -190,8 +230,9 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import Header from '@/components/Header.vue'
 import { 
   Reading, 
@@ -202,10 +243,15 @@ import {
   Lightning,
   Aim,
   Histogram,
-  Database
+  Monitor
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
+const authStore = useAuthStore()
+
+// 计算属性：是否为已登录用户
+const isAuthenticated = computed(() => authStore.isAuthenticated)
+const userInfo = computed(() => authStore.user)
 
 // 特色功能数据
 const features = ref([
@@ -267,12 +313,29 @@ const steps = ref([
 
 // 方法
 const startLearning = () => {
-  router.push('/courses')
+  if (isAuthenticated.value) {
+    router.push('/courses')
+  } else {
+    router.push('/courses')
+  }
 }
 
 const watchDemo = () => {
   // 显示演示视频
   console.log('显示演示视频')
+}
+
+// 已登录用户的快速操作
+const goToCourses = () => {
+  router.push('/courses')
+}
+
+const goToAITutor = () => {
+  router.push('/ai-tutor')
+}
+
+const goToProgress = () => {
+  router.push('/progress')
 }
 
 // 开发工具相关

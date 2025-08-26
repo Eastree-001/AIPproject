@@ -88,8 +88,7 @@ import {
   validateSupabaseConfig, 
   getEnvironmentInfo 
 } from '../utils/env-check'
-import { testConnection } from '../lib/supabase'
-import { supabase } from '../lib/supabase'
+import { supabase, testConnection as testSupabaseConnection } from '../lib/supabase'
 
 // 响应式数据
 const testing = ref(false)
@@ -153,7 +152,7 @@ const testEnvironment = () => {
 const testConnection = async () => {
   testing.value = true
   try {
-    const isConnected = await testConnection()
+    const isConnected = await testSupabaseConnection()
     
     if (isConnected) {
       dbStatus.type = 'success'
