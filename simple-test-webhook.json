@@ -1,0 +1,50 @@
+{
+  "name": "简单测试Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "test-simple",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "simple-webhook",
+      "name": "简单Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "{{ {\"success\": true, \"message\": \"Hello from n8n!\", \"receivedData\": $json} }}",
+        "options": {}
+      },
+      "id": "simple-response",
+      "name": "简单响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [460, 300]
+    }
+  ],
+  "connections": {
+    "简单Webhook": {
+      "main": [
+        [
+          {
+            "node": "简单响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "id": "simple-test-webhook",
+  "tags": ["测试", "Webhook"]
+}

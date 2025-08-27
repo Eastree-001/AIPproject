@@ -42,7 +42,7 @@
                 </div>
               </div>
               
-              <div class="chat-messages" ref="chatMessages">
+              <div class="chat-messages" ref="chatMessagesRef">
                 <div v-for="(message, index) in chatMessages" :key="index" 
                      :class="['message', message.role]">
                   <div class="message-avatar">
@@ -283,6 +283,22 @@ const chatMessages = ref([
   }
 ])
 
+// 确保 chatMessages 始终是数组的辅助函数
+const ensureChatMessagesArray = () => {
+  if (!Array.isArray(chatMessages.value)) {
+    console.warn('chatMessages.value 不是数组，类型为:', typeof chatMessages.value, '值为:', chatMessages.value)
+    console.trace('调用栈追踪:')
+    
+    chatMessages.value = [{
+      role: 'assistant',
+      content: '你好！我是你的AI学习助手。有什么可以帮助你的吗？',
+      timestamp: new Date()
+    }]
+    
+    console.log('已重置 chatMessages.value 为数组')
+  }
+}
+
 // 聊天历史
 const chatHistory = ref([
   {
@@ -315,7 +331,7 @@ const quickQuestions = [
   '学习技巧'
 ]
 
-const chatMessages_ref = ref(null)
+const chatMessagesRef = ref(null)
 
 // 计算属性
 const hasGoal = computed(() => !!currentOKR.value)
@@ -387,6 +403,9 @@ const askQuickQuestion = (question) => {
 const sendMessage = async () => {
   if (!chatInput.value.trim() || chatLoading.value) return
 
+  // 确保 chatMessages.value 是一个数组
+  ensureChatMessagesArray()
+
   const userMessage = {
     role: 'user',
     content: chatInput.value,
@@ -407,6 +426,10 @@ const sendMessage = async () => {
   // 模拟AI回复
   try {
     const aiResponse = await generateAIResponse(userInput)
+    
+    // 确保 chatMessages.value 仍然是一个数组
+    ensureChatMessagesArray()
+    
     chatMessages.value.push({
       role: 'assistant',
       content: aiResponse,
@@ -424,20 +447,82 @@ const sendMessage = async () => {
 }
 
 const generateAIResponse = async (userInput) => {
-  // 模拟AI响应延迟
-  await new Promise(resolve => setTimeout(resolve, 1000 + Math.random() * 2000))
+  // 尝试多个可能的webhook URL（包括测试URL和生产URL）
+  const possibleUrls = [
+    'http://localhost:5678/webhook/ai-question',
+    'http://localhost:5678/webhook-test/ai-question', 
+    'http://localhost:5678/webhook/N1ojvcfVVsZUqBcE',  // 使用之前看到的工作流ID
+    'http://localhost:5678/test-webhook/ai-question',
+    // n8n的测试webhook URL格式
+    'http://localhost:5678/webhook-test/N1ojvcfVVsZUqBcE',
+    // 可能的其他格式
+    'http://localhost:5678/webhook/ai-tutor-question'
+  ];
+
+  for (let url of possibleUrls) {
+    try {
+      console.log('尝试AI请求URL:', url, '问题:', userInput);
+      
+      // 尝试调用n8n AI API
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          question: userInput,
+          userId: authStore.user?.id || 'anonymous',
+          context: '用户在AI导师页面提问'
+        })
+      });
+
+      console.log('API响应状态:', response.status, response.statusText, 'URL:', url);
+      
+      if (response.ok) {
+        // 检查响应是否有内容
+        const responseText = await response.text();
+        console.log('API响应内容:', responseText);
+        
+        if (responseText.trim()) {
+          try {
+            const data = JSON.parse(responseText);
+            console.log('成功从URL获取响应:', url);
+            return data.answer || data.content || data.message || '抱歉，AI服务响应格式异常。';
+          } catch (parseError) {
+            console.warn('JSON解析失败，但有响应内容:', parseError, '原始响应:', responseText);
+            // 如果不是JSON，可能是纯文本响应
+            if (responseText.length > 0 && responseText.length < 1000) {
+              return responseText;
+            }
+            continue; // 尝试下一个URL
+          }
+        } else {
+          console.warn('URL返回空响应:', url);
+          continue; // 尝试下一个URL
+        }
+      } else {
+        console.warn('URL调用失败:', url, response.status);
+        continue; // 尝试下一个URL
+      }
+    } catch (error) {
+      console.warn('URL调用出错:', url, error.message);
+      continue; // 尝试下一个URL
+    }
+  }
+
+  // 如果所有URL都失败了，使用模拟响应
+  console.warn('所有n8n API URL都失败，使用模拟响应');
   
-  // 简单的AI响应逻辑
   const responses = [
     '这是一个很好的问题！让我来详细解释一下...',
     '根据你的学习目标，我建议你可以这样安排...',
     '这个问题涉及到几个重要概念，让我为你梳理一下...',
     '你的思路很清晰！我补充几点建议...',
     '这是一个常见的学习难点，我来分享一些解决方法...'
-  ]
+  ];
   
   return responses[Math.floor(Math.random() * responses.length)] + 
-         ' ' + userInput + ' 相关内容的学习建议和指导。'
+         ' 关于"' + userInput + '"的学习建议和指导。（当前使用模拟响应，AI服务正在调试中）';
 }
 
 const loadSession = (session) => {
@@ -446,8 +531,8 @@ const loadSession = (session) => {
 }
 
 const scrollToBottom = () => {
-  if (chatMessages_ref.value) {
-    chatMessages_ref.value.scrollTop = chatMessages_ref.value.scrollHeight
+  if (chatMessagesRef.value) {
+    chatMessagesRef.value.scrollTop = chatMessagesRef.value.scrollHeight
   }
 }
 
@@ -470,6 +555,9 @@ const formatDate = (dateStr) => {
 
 // 组件挂载时
 onMounted(() => {
+  // 确保聊天消息数组正确初始化
+  ensureChatMessagesArray()
+  
   // 可以在这里加载用户的学习目标和历史数据
   console.log('AI导师页面已加载')
 })

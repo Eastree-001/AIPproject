@@ -29,31 +29,10 @@ async function n8nRequest(endpoint, options = {}) {
   }
 }
 
-// 用户认证相关API
+// 用户认证由Supabase处理，此处保留作为占位符
 export const authAPI = {
-  // 用户注册
-  async register(userData) {
-    return await n8nRequest('/webhook/register', {
-      method: 'POST',
-      body: JSON.stringify(userData)
-    })
-  },
-
-  // 用户登录
-  async login(credentials) {
-    return await n8nRequest('/webhook/login', {
-      method: 'POST',
-      body: JSON.stringify(credentials)
-    })
-  },
-
-  // 密码重置
-  async resetPassword(email) {
-    return await n8nRequest('/webhook/reset-password', {
-      method: 'POST',
-      body: JSON.stringify({ email })
-    })
-  }
+  // 注意: 认证功能已迁移回Supabase Auth
+  // 这些方法保留用于向后兼容，但不再使用
 }
 
 // 课程管理相关API

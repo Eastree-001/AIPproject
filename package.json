@@ -7,9 +7,10 @@
     "build": "vite build",
     "preview": "vite preview",
     "vercel-build": "vite build",
-    "n8n": "n8n start",
-    "n8n:dev": "cross-env NODE_ENV=development n8n start",
-    "n8n:prod": "cross-env NODE_ENV=production n8n start"
+    "n8n": "node start-n8n.js",
+    "n8n:dev": "cross-env NODE_ENV=development node start-n8n.js",
+    "n8n:prod": "cross-env NODE_ENV=production n8n start",
+    "test:coze": "node test-coze-api.js"
   },
   "engines": {
     "node": ">=18.0.0",
@@ -26,7 +27,9 @@
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
     "cross-env": "^10.0.0",
+    "dotenv": "^16.6.1",
     "n8n": "^1.108.1",
+    "node-fetch": "^2.7.0",
     "terser": "^5.24.0",
     "vite": "^4.4.5"
   }

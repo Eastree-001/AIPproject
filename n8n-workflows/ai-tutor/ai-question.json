@@ -1,0 +1,277 @@
+{
+  "name": "AI智能问答工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ai-question",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "ai-question-webhook",
+      "name": "AI问答Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "ai-question"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 解析请求数据\nconst requestBody = $input.first().json.body;\nconst headers = $input.first().json.headers;\n\nif (!requestBody) {\n  throw new Error('请求体不能为空');\n}\n\nconst { question, userId, context, sessionId } = requestBody;\n\nif (!question || !userId) {\n  throw new Error('问题和用户ID不能为空');\n}\n\n// 生成会话ID（如果没有提供）\nconst finalSessionId = sessionId || `session_${userId}_${Date.now()}`;\n\nreturn {\n  question: question.trim(),\n  userId: userId.toString(),\n  context: context || '',\n  sessionId: finalSessionId,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "parse-ai-question",
+      "name": "解析AI问题",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "ai_sessions",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "session_id",
+              "keyValue": "={{ $json.sessionId }}"
+            }
+          ]
+        },
+        "returnFields": "*",
+        "limit": 1
+      },
+      "id": "get-session-history",
+      "name": "获取会话历史",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 300],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 构建AI请求\nconst questionData = $('解析AI问题').first().json;\nconst sessionHistory = $input.first().json || [];\n\n// 构建对话历史\nlet chatHistory = [];\nif (sessionHistory.length > 0 && sessionHistory[0].messages) {\n  const messages = typeof sessionHistory[0].messages === 'string' \n    ? JSON.parse(sessionHistory[0].messages) \n    : sessionHistory[0].messages;\n  chatHistory = Array.isArray(messages) ? messages.slice(-10) : []; // 只保留最近10条消息\n}\n\n// 构建系统提示词\nconst systemPrompt = `你是启明星平台的AI导师，专门帮助学生学习和成长。请遵循以下原则：\n1. 耐心、友善、专业地回答学生问题\n2. 提供具体、实用的学习建议\n3. 鼓励学生独立思考和探索\n4. 根据上下文提供个性化回答\n5. 如果问题超出能力范围，诚实说明并建议其他资源\n\n学生上下文信息：${questionData.context}\n当前问题：${questionData.question}`;\n\n// 构建请求体\nconst requestBody = {\n  conversation_id: questionData.sessionId,\n  bot_id: process.env.COZE_BOT_ID,\n  user: questionData.userId,\n  query: questionData.question,\n  chat_history: [\n    {\n      role: \"system\",\n      content: systemPrompt\n    },\n    ...chatHistory,\n    {\n      role: \"user\", \n      content: questionData.question\n    }\n  ],\n  stream: false\n};\n\nreturn {\n  url: 'https://api.coze.cn/open_api/v2/chat',\n  headers: {\n    'Authorization': `Bearer ${process.env.COZE_API_KEY}`,\n    'Content-Type': 'application/json',\n    'Accept': 'application/json'\n  },\n  body: requestBody,\n  originalData: questionData\n};"
+      },
+      "id": "build-ai-request",
+      "name": "构建AI请求",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "requestFormat": "json",
+        "jsonParameters": "={{ $json.body }}",
+        "options": {
+          "headers": "={{ $json.headers }}"
+        }
+      },
+      "id": "call-coze-api",
+      "name": "调用Coze API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 处理AI响应\nconst response = $input.first().json;\nconst originalData = $('构建AI请求').first().json.originalData;\n\nlet aiAnswer = '';\nlet success = false;\n\n// 解析Coze API响应\nif (response && response.code === 0 && response.data) {\n  if (response.data.messages && response.data.messages.length > 0) {\n    const lastMessage = response.data.messages[response.data.messages.length - 1];\n    if (lastMessage.type === 'answer' && lastMessage.content) {\n      aiAnswer = lastMessage.content;\n      success = true;\n    }\n  }\n}\n\n// 如果AI调用失败，提供默认回复\nif (!success) {\n  aiAnswer = '抱歉，我现在无法回答您的问题，请稍后重试。如果问题持续存在，请联系技术支持。';\n}\n\n// 构建会话消息\nconst newMessages = [\n  {\n    role: 'user',\n    content: originalData.question,\n    timestamp: originalData.timestamp\n  },\n  {\n    role: 'assistant', \n    content: aiAnswer,\n    timestamp: new Date().toISOString()\n  }\n];\n\nreturn {\n  sessionId: originalData.sessionId,\n  userId: originalData.userId,\n  question: originalData.question,\n  answer: aiAnswer,\n  messages: newMessages,\n  success: success,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "process-ai-response",
+      "name": "处理AI响应",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 300]
+    },
+    {
+      "parameters": {
+        "operation": "upsert",
+        "table": "ai_sessions",
+        "updateKey": "session_id",
+        "columnsUi": {
+          "columnValues": [
+            {
+              "column": "session_id",
+              "value": "={{ $json.sessionId }}"
+            },
+            {
+              "column": "user_id", 
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "column": "messages",
+              "value": "={{ JSON.stringify($json.messages) }}"
+            },
+            {
+              "column": "updated_at",
+              "value": "={{ $json.timestamp }}"
+            }
+          ]
+        }
+      },
+      "id": "save-session",
+      "name": "保存会话",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1560, 300],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"success\": $json.success, \"answer\": $('处理AI响应').first().json.answer, \"sessionId\": $('处理AI响应').first().json.sessionId, \"timestamp\": $('处理AI响应').first().json.timestamp } }}",
+        "options": {}
+      },
+      "id": "respond-with-answer",
+      "name": "返回AI回答",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1780, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 错误处理\nconst error = $input.first().error;\n\nreturn {\n  success: false,\n  error: error.message || '处理AI问答时发生错误',\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "handle-error",
+      "name": "错误处理", 
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "responseCode": "500",
+        "options": {}
+      },
+      "id": "error-response",
+      "name": "错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 500]
+    }
+  ],
+  "connections": {
+    "AI问答Webhook": {
+      "main": [
+        [
+          {
+            "node": "解析AI问题",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析AI问题": {
+      "main": [
+        [
+          {
+            "node": "获取会话历史",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取会话历史": {
+      "main": [
+        [
+          {
+            "node": "构建AI请求",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "构建AI请求": {
+      "main": [
+        [
+          {
+            "node": "调用Coze API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "调用Coze API": {
+      "main": [
+        [
+          {
+            "node": "处理AI响应", 
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理AI响应": {
+      "main": [
+        [
+          {
+            "node": "保存会话",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "保存会话": {
+      "main": [
+        [
+          {
+            "node": "返回AI回答",
+            "type": "main", 
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "错误处理": {
+      "main": [
+        [
+          {
+            "node": "错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "ai-question-workflow",
+  "tags": ["AI导师", "智能问答", "Coze"]
+}

@@ -174,6 +174,30 @@
           <el-icon size="24"><Close /></el-icon>
         </el-button>
       </div>
+
+      <!-- 移动端搜索框 -->
+      <div class="mobile-search">
+        <el-input
+          v-model="searchQuery"
+          placeholder="搜索课程、知识点..."
+          prefix-icon="Search"
+          size="large"
+          class="mobile-search-input"
+          @keyup.enter="handleSearch"
+        />
+      </div>
+
+      <!-- 移动端用户信息 -->
+      <div class="mobile-user-info" v-if="isLoggedIn">
+        <div class="mobile-user-avatar">
+          <el-avatar :size="50" :src="userAvatar" :alt="userName" />
+          <div class="mobile-user-details">
+            <div class="mobile-user-name">{{ userName }}</div>
+            <div class="mobile-user-status">在线学习中</div>
+          </div>
+        </div>
+      </div>
+
       <nav class="mobile-nav-menu">
         <ul class="mobile-nav-list">
           <li class="mobile-nav-item">
@@ -210,6 +234,7 @@
             <router-link to="/notifications" class="mobile-nav-link" @click="toggleMobileMenu">
               <el-icon><Bell /></el-icon>
               通知中心
+              <el-badge :value="notificationCount" :hidden="notificationCount === 0" class="mobile-badge" />
             </router-link>
           </li>
           <li class="mobile-nav-item">
@@ -218,7 +243,60 @@
               学习记录
             </router-link>
           </li>
+          
+          <!-- 移动端专属菜单项 -->
+          <li class="mobile-nav-item" v-if="isLoggedIn">
+            <router-link to="/profile" class="mobile-nav-link" @click="toggleMobileMenu">
+              <el-icon><User /></el-icon>
+              个人资料
+            </router-link>
+          </li>
+          <li class="mobile-nav-item" v-if="isLoggedIn">
+            <router-link to="/settings" class="mobile-nav-link" @click="toggleMobileMenu">
+              <el-icon><Setting /></el-icon>
+              设置
+            </router-link>
+          </li>
+          <li class="mobile-nav-item" v-if="isLoggedIn">
+            <router-link to="/help" class="mobile-nav-link" @click="toggleMobileMenu">
+              <el-icon><QuestionFilled /></el-icon>
+              帮助中心
+            </router-link>
+          </li>
         </ul>
+
+        <!-- 移动端认证按钮 -->
+        <div class="mobile-auth-section">
+          <div v-if="isLoggedIn" class="mobile-logout">
+            <el-button 
+              type="danger" 
+              size="large" 
+              class="mobile-logout-btn"
+              @click="handleLogout"
+            >
+              <el-icon><SwitchButton /></el-icon>
+              退出登录
+            </el-button>
+          </div>
+          <div v-else class="mobile-auth-buttons">
+            <el-button 
+              type="default" 
+              size="large" 
+              class="mobile-login-btn"
+              @click="goToLogin"
+            >
+              登录
+            </el-button>
+            <el-button 
+              type="primary" 
+              size="large" 
+              class="mobile-register-btn"
+              @click="goToRegister"
+            >
+              注册
+            </el-button>
+          </div>
+        </div>
       </nav>
     </div>
   </header>
@@ -310,6 +388,12 @@ const goToRegister = () => {
 const toggleMobileMenu = () => {
   isMobileMenuOpen.value = !isMobileMenuOpen.value
 }
+
+const handleLogout = () => {
+  authStore.logout()
+  router.push('/auth')
+  toggleMobileMenu()
+}
 </script>
 
 <style scoped>
@@ -326,10 +410,10 @@ const toggleMobileMenu = () => {
 }
 
 .header-container {
-  max-width: 1400px;
+  max-width: 1800px;
   margin: 0 auto;
   padding: 0 24px;
-  height: 80px;
+  height: 88px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -338,6 +422,9 @@ const toggleMobileMenu = () => {
 /* Logo区域 */
 .logo-section {
   flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+  margin-right: 20px;
 }
 
 .logo-link {
@@ -385,26 +472,33 @@ const toggleMobileMenu = () => {
   display: flex;
   justify-content: center;
   min-width: 0;
+  padding: 4px 16px;
+  margin: 0 20px;
+  z-index: 10;
+  position: relative;
 }
 
 .nav-list {
   display: flex;
   list-style: none;
-  gap: 6px;
+  gap: 12px;
   flex-wrap: nowrap;
   justify-content: center;
   align-items: center;
+  min-width: 0;
+  padding: 8px 0;
 }
 
 .nav-item {
   position: relative;
+  margin: 4px 2px;
 }
 
 .nav-link {
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 10px 16px;
+  padding: 12px 18px;
   text-decoration: none;
   color: #333;
   font-weight: 500;
@@ -413,18 +507,28 @@ const toggleMobileMenu = () => {
   position: relative;
   white-space: nowrap;
   flex-shrink: 0;
+  z-index: 5;
 }
 
 .nav-link:hover {
   background: rgba(102, 126, 234, 0.1);
   color: #667eea;
-  transform: translateY(-2px);
+  transform: translateY(-3px) scale(1.02);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+  z-index: 12;
 }
 
 .nav-link.active {
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+  transform: translateY(-1px) scale(1.02);
+}
+
+.nav-link.active:hover {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.5);
+  z-index: 14;
 }
 
 .nav-link .el-icon {
@@ -437,12 +541,16 @@ const toggleMobileMenu = () => {
   align-items: center;
   gap: 15px;
   flex-shrink: 0;
+  z-index: 10;
+  position: relative;
+  margin-left: 20px;
 }
 
 /* 搜索框 */
 .search-box {
   position: relative;
   flex-shrink: 0;
+  z-index: 15;
 }
 
 .search-input {
@@ -565,6 +673,8 @@ const toggleMobileMenu = () => {
   transform: translateX(-100%);
   transition: transform 0.3s ease;
   overflow-y: auto;
+  display: flex;
+  flex-direction: column;
 }
 
 .mobile-nav-open {
@@ -587,6 +697,9 @@ const toggleMobileMenu = () => {
 
 .mobile-nav-menu {
   padding: 20px 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 .mobile-nav-list {
@@ -617,19 +730,240 @@ const toggleMobileMenu = () => {
   font-size: 20px;
 }
 
+/* 移动端搜索框 */
+.mobile-search {
+  padding: 16px 24px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.mobile-search-input :deep(.el-input__wrapper) {
+  border-radius: 25px;
+  background: #f8f9fa;
+}
+
+/* 移动端用户信息 */
+.mobile-user-info {
+  padding: 20px 24px;
+  border-bottom: 1px solid #f5f5f5;
+}
+
+.mobile-user-avatar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-user-details {
+  flex: 1;
+}
+
+.mobile-user-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.mobile-user-status {
+  font-size: 12px;
+  color: #667eea;
+  background: rgba(102, 126, 234, 0.1);
+  padding: 2px 8px;
+  border-radius: 12px;
+  display: inline-block;
+}
+
+/* 移动端认证区域 */
+.mobile-auth-section {
+  padding: 20px 24px;
+  border-top: 1px solid #f5f5f5;
+  margin-top: auto;
+}
+
+.mobile-logout-btn {
+  width: 100%;
+  border-radius: 25px;
+}
+
+.mobile-auth-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.mobile-login-btn,
+.mobile-register-btn {
+  flex: 1;
+  border-radius: 25px;
+}
+
+/* 移动端徽章 */
+.mobile-badge {
+  margin-left: auto;
+}
+
+.mobile-nav-link {
+  position: relative;
+  justify-content: flex-start;
+}
+
+.mobile-badge :deep(.el-badge__content) {
+  position: static;
+  transform: none;
+  margin-left: 8px;
+  font-size: 10px;
+  height: 16px;
+  line-height: 16px;
+  min-width: 16px;
+}
+
 /* 响应式设计 */
+@media (max-width: 1200px) {
+  .search-input {
+    width: 180px;
+  }
+  
+  .nav-link {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+  
+  .nav-list {
+    gap: 8px;
+  }
+  
+  .nav-item {
+    margin: 3px 1px;
+  }
+  
+  .main-nav {
+    margin: 0 15px;
+    padding: 4px 12px;
+  }
+  
+  .logo-section {
+    margin-right: 15px;
+  }
+  
+  .header-right {
+    gap: 10px;
+    margin-left: 15px;
+  }
+}
+
 @media (max-width: 1024px) {
   .search-input {
-    width: 200px;
+    width: 160px;
   }
   
   .nav-link {
     padding: 8px 12px;
-    font-size: 14px;
+    font-size: 12px;
+  }
+  
+  .nav-list {
+    gap: 6px;
+  }
+  
+  .nav-item {
+    margin: 2px 1px;
+  }
+  
+  .main-nav {
+    margin: 0 12px;
+    padding: 4px 8px;
+  }
+  
+  .logo-section {
+    margin-right: 12px;
+  }
+  
+  .header-right {
+    gap: 8px;
+    margin-left: 12px;
+  }
+  
+  .user-name {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .search-box {
+    display: none;
+  }
+  
+  .nav-link {
+    padding: 6px 10px;
+    font-size: 11px;
+    gap: 2px;
   }
   
   .nav-list {
     gap: 4px;
+  }
+  
+  .nav-item {
+    margin: 2px 0;
+  }
+  
+  .main-nav {
+    margin: 0 8px;
+    padding: 4px 6px;
+  }
+  
+  .logo-section {
+    margin-right: 8px;
+  }
+  
+  .header-right {
+    gap: 6px;
+    margin-left: 8px;
+  }
+  
+  .nav-link .el-icon {
+    font-size: 12px;
+  }
+  
+  .notification-icon {
+    display: none;
+  }
+}
+
+@media (max-width: 820px) {
+  .header-container {
+    padding: 0 12px;
+  }
+  
+  .nav-list {
+    gap: 2px;
+  }
+  
+  .nav-link {
+    padding: 5px 8px;
+    font-size: 10px;
+    gap: 1px;
+  }
+  
+  .nav-item {
+    margin: 1px 0;
+  }
+  
+  .main-nav {
+    margin: 0 6px;
+    padding: 2px 4px;
+  }
+  
+  .logo-section {
+    margin-right: 6px;
+  }
+  
+  .header-right {
+    gap: 5px;
+    margin-left: 6px;
+  }
+  
+  .nav-link .el-icon {
+    font-size: 11px;
   }
 }
 

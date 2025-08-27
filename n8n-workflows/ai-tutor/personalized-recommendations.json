@@ -1,0 +1,356 @@
+{
+  "name": "个性化推荐工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "recommendations/{{ $parameter.userId }}",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "recommendations-webhook",
+      "name": "个性化推荐Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 1,
+      "position": [240, 300],
+      "webhookId": "personalized-recommendations"
+    },
+    {
+      "parameters": {
+        "jsCode": "// 从URL路径提取用户ID和查询参数\nconst req = $input.first().json;\nconst pathParts = req.path.split('/');\nconst userId = pathParts[pathParts.length - 1];\n\nif (!userId || userId === 'recommendations') {\n  throw new Error('用户ID缺失');\n}\n\n// 解析查询参数\nconst queryParams = req.query || {};\nconst recommendationType = queryParams.type || 'courses'; // courses, topics, resources\nconst limit = parseInt(queryParams.limit) || 5;\n\nreturn { \n  userId,\n  recommendationType,\n  limit,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "parse-request-params",
+      "name": "解析请求参数",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [460, 300]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "progress",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "keyValue": "={{ $json.userId }}"
+            }
+          ]
+        },
+        "returnFields": "*",
+        "sortKey": "updated_at",
+        "sortDirection": "desc"
+      },
+      "id": "get-user-progress",
+      "name": "获取用户进度",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 200],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "courses",
+        "returnFields": "*",
+        "sortKey": "created_at",
+        "sortDirection": "desc"
+      },
+      "id": "get-available-courses",
+      "name": "获取可用课程",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 400],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "users",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "id",
+              "keyValue": "={{ $('解析请求参数').first().json.userId }}"
+            }
+          ]
+        },
+        "returnFields": "*"
+      },
+      "id": "get-user-preferences",
+      "name": "获取用户偏好",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 600],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "ai_sessions",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "user_id",
+              "keyValue": "={{ $('解析请求参数').first().json.userId }}"
+            }
+          ]
+        },
+        "returnFields": "*",
+        "sortKey": "updated_at",
+        "sortDirection": "desc",
+        "limit": 10
+      },
+      "id": "get-ai-interactions",
+      "name": "获取AI交互记录",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [680, 800],
+      "credentials": {
+        "supabase": {
+          "id": "supabase-credentials",
+          "name": "Supabase"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// 分析用户数据并生成个性化推荐\nconst params = $('解析请求参数').first().json;\nconst userProgress = $('获取用户进度').first().json || [];\nconst allCourses = $('获取可用课程').first().json || [];\nconst userPrefs = $('获取用户偏好').first().json || [];\nconst aiInteractions = $('获取AI交互记录').first().json || [];\n\nconst user = userPrefs.length > 0 ? userPrefs[0] : {};\n\n// 分析用户学习模式\nconst completedCourses = userProgress.filter(p => p.completed).map(p => p.course_id);\nconst inProgressCourses = userProgress.filter(p => !p.completed && p.progress > 0).map(p => p.course_id);\nconst preferredLevels = userProgress.map(p => {\n  const course = allCourses.find(c => c.id === p.course_id);\n  return course ? course.level : null;\n}).filter(level => level !== null);\n\n// 计算用户兴趣领域（基于完成的课程）\nconst interestAreas = completedCourses.map(courseId => {\n  const course = allCourses.find(c => c.id === courseId);\n  return course ? course.category || course.title.split(' ')[0] : null;\n}).filter(area => area !== null);\n\n// 分析AI交互中的关键词\nconst aiKeywords = aiInteractions.flatMap(interaction => {\n  if (interaction.messages && typeof interaction.messages === 'object') {\n    const content = JSON.stringify(interaction.messages).toLowerCase();\n    return content.match(/[\\u4e00-\\u9fa5]+/g) || []; // 提取中文关键词\n  }\n  return [];\n}).slice(0, 20); // 只取前20个关键词\n\n// 推荐逻辑\nconst uncompletedCourses = allCourses.filter(course => !completedCourses.includes(course.id));\n\n// 构建推荐提示词\nconst recommendationPrompt = `\n作为一位专业的学习推荐专家，请为用户提供个性化的学习推荐。\n\n用户学习画像：\n- 已完成课程数量：${completedCourses.length}\n- 正在学习课程数量：${inProgressCourses.length}\n- 偏好学习难度：${preferredLevels.join(', ') || '未知'}\n- 兴趣领域：${interestAreas.join(', ') || '未知'}\n- 最近询问的关键词：${aiKeywords.slice(0, 10).join(', ') || '无'}\n- 用户角色：${user.role || '学生'}\n\n可推荐的课程列表：\n${uncompletedCourses.slice(0, 20).map(c => \n  `- ${c.title} (难度: ${c.level || '未知'}, 时长: ${c.duration || '未知'}分钟)`\n).join('\\n')}\n\n推荐类型：${params.recommendationType === 'courses' ? '课程推荐' : params.recommendationType === 'topics' ? '主题推荐' : '学习资源推荐'}\n\n请提供 ${params.limit} 个高质量的个性化推荐，每个推荐包括：\n1. 推荐项目名称\n2. 推荐理由（结合用户画像）\n3. 预期收益\n4. 学习建议\n\n请用JSON格式回答，格式如下：\n{\n  \"recommendations\": [\n    {\n      \"title\": \"推荐名称\",\n      \"reason\": \"推荐理由\",\n      \"benefits\": \"预期收益\",\n      \"suggestion\": \"学习建议\",\n      \"difficulty\": \"难度级别\",\n      \"estimatedTime\": \"预计时长\"\n    }\n  ],\n  \"summary\": \"整体推荐说明\"\n}\n`;\n\nreturn {\n  url: 'https://api.coze.cn/open_api/v2/chat',\n  headers: {\n    'Authorization': `Bearer ${process.env.COZE_API_KEY}`,\n    'Content-Type': 'application/json',\n    'Accept': 'application/json'\n  },\n  body: {\n    \"conversation_id\": `recommendation_${params.userId}_${Date.now()}`,\n    \"bot_id\": process.env.COZE_BOT_ID,\n    \"user\": params.userId,\n    \"query\": `请为我推荐${params.limit}个${params.recommendationType}`,\n    \"chat_history\": [\n      {\n        \"role\": \"system\",\n        \"content\": recommendationPrompt\n      }\n    ],\n    \"stream\": false\n  },\n  analysisData: {\n    userId: params.userId,\n    completedCourses: completedCourses.length,\n    inProgressCourses: inProgressCourses.length,\n    interestAreas,\n    recommendationType: params.recommendationType,\n    requestedLimit: params.limit,\n    availableCourses: uncompletedCourses.length\n  }\n};"
+      },
+      "id": "generate-recommendations",
+      "name": "生成个性化推荐",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [900, 400]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.url }}",
+        "authentication": "none",
+        "requestFormat": "json",
+        "jsonParameters": "={{ $json.body }}",
+        "options": {
+          "headers": "={{ $json.headers }}"
+        }
+      },
+      "id": "call-coze-recommendation-api",
+      "name": "调用Coze推荐API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4,
+      "position": [1120, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 处理AI推荐响应\nconst response = $input.first().json;\nconst analysisData = $('生成个性化推荐').first().json.analysisData;\n\nlet recommendations = [];\nlet summary = '';\nlet success = false;\n\n// 解析Coze API响应\nif (response && response.code === 0 && response.data) {\n  if (response.data.messages && response.data.messages.length > 0) {\n    const lastMessage = response.data.messages[response.data.messages.length - 1];\n    if (lastMessage.type === 'answer' && lastMessage.content) {\n      try {\n        // 尝试解析JSON格式的推荐结果\n        const content = lastMessage.content;\n        const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n        if (jsonMatch) {\n          const parsedRecommendations = JSON.parse(jsonMatch[0]);\n          recommendations = parsedRecommendations.recommendations || [];\n          summary = parsedRecommendations.summary || content;\n          success = true;\n        } else {\n          // 如果不是JSON格式，直接使用文本内容\n          summary = content;\n          success = true;\n        }\n      } catch (parseError) {\n        // JSON解析失败，使用原始内容\n        summary = lastMessage.content;\n        success = true;\n      }\n    }\n  }\n}\n\n// 如果AI调用失败，提供默认推荐\nif (!success) {\n  recommendations = [\n    {\n      title: \"基础编程入门\",\n      reason: \"根据您的学习历史，建议从基础开始\",\n      benefits: \"建立扎实的编程基础\",\n      suggestion: \"每天学习30分钟，配合实际练习\",\n      difficulty: \"初级\",\n      estimatedTime: \"4周\"\n    },\n    {\n      title: \"数据分析基础\",\n      reason: \"这是当前热门技能，适合您的水平\",\n      benefits: \"掌握数据处理和分析技能\",\n      suggestion: \"结合实际项目进行学习\",\n      difficulty: \"中级\",\n      estimatedTime: \"6周\"\n    }\n  ];\n  summary = \"基于您的学习情况，我们为您推荐了适合的课程，帮助您持续提升技能。\";\n}\n\nreturn {\n  success: true,\n  data: {\n    recommendations: recommendations.slice(0, analysisData.requestedLimit),\n    summary,\n    userProfile: {\n      completedCourses: analysisData.completedCourses,\n      inProgressCourses: analysisData.inProgressCourses,\n      interestAreas: analysisData.interestAreas,\n      availableCourses: analysisData.availableCourses\n    },\n    recommendationType: analysisData.recommendationType,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "process-recommendation-response",
+      "name": "处理推荐响应",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json.data }}",
+        "options": {}
+      },
+      "id": "respond-recommendations",
+      "name": "返回个性化推荐",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "// 推荐错误处理\nconst error = $input.first().error;\n\nreturn {\n  success: false,\n  message: '获取个性化推荐时发生错误，请稍后重试',\n  error: error.message || '未知错误',\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "handle-recommendation-error",
+      "name": "推荐错误处理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1340, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "responseCode": "500",
+        "options": {}
+      },
+      "id": "error-recommendation-response",
+      "name": "推荐错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1560, 600]
+    }
+  ],
+  "connections": {
+    "个性化推荐Webhook": {
+      "main": [
+        [
+          {
+            "node": "解析请求参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析请求参数": {
+      "main": [
+        [
+          {
+            "node": "获取用户进度",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取可用课程",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取用户偏好",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取AI交互记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取用户进度": {
+      "main": [
+        [
+          {
+            "node": "生成个性化推荐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取可用课程": {
+      "main": [
+        [
+          {
+            "node": "生成个性化推荐",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "获取用户偏好": {
+      "main": [
+        [
+          {
+            "node": "生成个性化推荐",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "获取AI交互记录": {
+      "main": [
+        [
+          {
+            "node": "生成个性化推荐",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "生成个性化推荐": {
+      "main": [
+        [
+          {
+            "node": "调用Coze推荐API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "调用Coze推荐API": {
+      "main": [
+        [
+          {
+            "node": "处理推荐响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "推荐错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理推荐响应": {
+      "main": [
+        [
+          {
+            "node": "返回个性化推荐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "推荐错误处理": {
+      "main": [
+        [
+          {
+            "node": "推荐错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1.0.0",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "personalized-recommendations-workflow",
+  "tags": ["AI导师", "个性化推荐", "智能推荐", "Coze"]
+}

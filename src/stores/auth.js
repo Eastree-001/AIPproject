@@ -1,7 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import { supabase } from '@/lib/supabase'
-import { userProfileService } from '@/services/userProfile'
+import { userService } from '@/services/database'
 
 export const useAuthStore = defineStore('auth', () => {
   const user = ref(null)
@@ -27,25 +27,19 @@ export const useAuthStore = defineStore('auth', () => {
       if (authError) {
         console.error('登录错误:', authError)
         throw authError
-      }else{
-        console.log('登录成功，用户数据:', data)
       }
-
+      
+      console.log('登录成功，用户数据:', data)
+      
       // 设置用户和会话
       user.value = data.user
       session.value = data.session
-      
-      // 强制触发响应式更新
-      await new Promise(resolve => setTimeout(resolve, 0))
       
       console.log('认证状态已更新:', {
         user: !!user.value,
         session: !!session.value,
         isAuthenticated: isAuthenticated.value
       })
-      
-      // 暂时跳过用户资料创建，避免在数据库操作时卡住
-      console.log('跳过用户资料创建，直接返回登录成功')
       
       return { success: true, user: user.value }
     } catch (err) {
@@ -83,10 +77,6 @@ export const useAuthStore = defineStore('auth', () => {
       // 设置用户和会话
       user.value = data.user
       session.value = data.session
-      
-      // 注意：在注册时，用户资料创建可能会因为RLS策略而失败
-      // 我们将在登录时自动创建用户资料
-      console.log('注册完成，用户资料将在首次登录时创建')
       
       return { success: true, user: data.user }
     } catch (err) {
@@ -129,17 +119,6 @@ export const useAuthStore = defineStore('auth', () => {
       if (currentUser) {
         console.log('当前用户:', currentUser)
         user.value = currentUser
-        
-        // 获取用户完整资料
-        try {
-          const profile = await userProfileService.getProfile(currentUser.id)
-          if (profile) {
-            user.value = { ...currentUser, ...profile }
-          }
-        } catch (profileErr) {
-          console.warn('处理用户资料时出错:', profileErr)
-        }
-        
         return currentUser
       } else {
         console.log('未找到当前用户')
@@ -175,7 +154,7 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  // 监听认证状态变化
+  // 初始化认证状态监听
   const initAuth = () => {
     console.log('初始化认证状态监听...')
     
@@ -185,43 +164,21 @@ export const useAuthStore = defineStore('auth', () => {
     // 获取当前用户
     getCurrentUser()
     
-    // 添加标志位防止重复执行
-    let isProcessingAuthChange = false
-    
     // 监听认证状态变化
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      // 防止重复执行
-      if (isProcessingAuthChange) {
-        console.log('认证状态变化处理中，跳过重复事件:', event)
-        return
-      }
-      
-      isProcessingAuthChange = true
       console.log('认证状态变化:', event, session)
       
-      try {
-        if (event === 'SIGNED_IN' && session) {
-          // 只在用户状态未设置时设置
-          if (!user.value || !session.value) {
-            user.value = session.user
-            session.value = session
-            console.log('用户已登录:', session.user)
-          }
-          
-          // 暂时跳过用户资料创建，避免在数据库操作时卡住
-          console.log('跳过用户资料创建')
-        } else if (event === 'SIGNED_OUT') {
-          user.value = null
-          session.value = null
-          console.log('用户已登出')
-        } else if (event === 'TOKEN_REFRESHED' && session) {
-          session.value = session
-          console.log('令牌已刷新')
-        }
-      } catch (error) {
-        console.error('处理认证状态变化时出错:', error)
-      } finally {
-        isProcessingAuthChange = false
+      if (event === 'SIGNED_IN' && session) {
+        user.value = session.user
+        session.value = session
+        console.log('用户已登录:', session.user)
+      } else if (event === 'SIGNED_OUT') {
+        user.value = null
+        session.value = null
+        console.log('用户已登出')
+      } else if (event === 'TOKEN_REFRESHED' && session) {
+        session.value = session
+        console.log('令牌已刷新')
       }
     })
     
@@ -235,7 +192,7 @@ export const useAuthStore = defineStore('auth', () => {
       loading.value = true
       error.value = null
       
-      const updatedProfile = await userProfileService.updateProfile(user.value.id, updates)
+      const updatedProfile = await userService.updateProfile(user.value.id, updates)
       
       user.value = { ...user.value, ...updatedProfile }
       return { success: true, user: user.value }
