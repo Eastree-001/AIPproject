@@ -1,0 +1,476 @@
+{
+  "name": "学习进度跟踪工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/learning/progress",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "progress-webhook",
+      "name": "学习进度触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [280, 300],
+      "webhookId": "learning-progress"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user-id",
+              "name": "userId",
+              "value": "={{ $('学习进度触发器').item.json.body.userId }}",
+              "type": "string"
+            },
+            {
+              "id": "course-id",
+              "name": "courseId",
+              "value": "={{ $('学习进度触发器').item.json.body.courseId }}",
+              "type": "string"
+            },
+            {
+              "id": "lesson-id",
+              "name": "lessonId",
+              "value": "={{ $('学习进度触发器').item.json.body.lessonId }}",
+              "type": "string"
+            },
+            {
+              "id": "progress",
+              "name": "progress",
+              "value": "={{ parseInt($('学习进度触发器').item.json.body.progress) || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "time-spent",
+              "name": "timeSpent",
+              "value": "={{ parseInt($('学习进度触发器').item.json.body.timeSpent) || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "action-type",
+              "name": "actionType",
+              "value": "={{ $('学习进度触发器').item.json.body.actionType || 'update' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-progress-data",
+      "name": "提取进度数据",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "user-id-exists",
+              "leftValue": "={{ $json.userId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "lesson-id-exists",
+              "leftValue": "={{ $json.lessonId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "progress-valid",
+              "leftValue": "={{ $json.progress }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-progress-data",
+      "name": "验证进度数据",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{ $env.SUPABASE_URL }}/rest/v1/user_progress",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "course_id",
+              "value": "={{ $json.courseId }}"
+            },
+            {
+              "name": "lesson_id",
+              "value": "={{ $json.lessonId }}"
+            },
+            {
+              "name": "progress",
+              "value": "={{ $json.progress }}"
+            },
+            {
+              "name": "time_spent",
+              "value": "={{ $json.timeSpent }}"
+            },
+            {
+              "name": "completed_at",
+              "value": "={{ $json.progress >= 100 ? new Date().toISOString() : null }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "upsert-progress",
+      "name": "更新学习进度",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "lesson-completed",
+              "leftValue": "={{ $('提取进度数据').item.json.progress }}",
+              "rightValue": "100",
+              "operator": {
+                "type": "number",
+                "operation": "gte"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-completion",
+      "name": "检查是否完成",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "{{ $env.SUPABASE_URL }}/rest/v1/user_progress?user_id=eq.{{ $('提取进度数据').item.json.userId }}&course_id=eq.{{ $('提取进度数据').item.json.courseId }}&select=*",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "get-course-progress",
+      "name": "获取课程总进度",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1380, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const progressData = $input.first().json;\nconst inputData = $('提取进度数据').first().json;\n\nconsole.log('计算课程完成度 - 进度数据:', JSON.stringify(progressData));\n\n// 计算课程总体完成度\nlet totalLessons = 0;\nlet completedLessons = 0;\nlet totalProgress = 0;\n\nif (Array.isArray(progressData) && progressData.length > 0) {\n  totalLessons = progressData.length;\n  \n  progressData.forEach(lesson => {\n    if (lesson.progress >= 100) {\n      completedLessons++;\n    }\n    totalProgress += lesson.progress || 0;\n  });\n}\n\nconst courseCompletionRate = totalLessons > 0 ? Math.round(totalProgress / totalLessons) : 0;\nconst lessonsCompletedToday = inputData.progress >= 100 ? 1 : 0;\n\nconst result = {\n  userId: inputData.userId,\n  courseId: inputData.courseId,\n  lessonId: inputData.lessonId,\n  lessonProgress: inputData.progress,\n  timeSpent: inputData.timeSpent,\n  courseCompletionRate: courseCompletionRate,\n  totalLessons: totalLessons,\n  completedLessons: completedLessons,\n  lessonsCompletedToday: lessonsCompletedToday,\n  timestamp: new Date().toISOString(),\n  isLessonCompleted: inputData.progress >= 100,\n  isCourseCompleted: courseCompletionRate >= 100\n};\n\nconsole.log('课程完成度计算结果:', JSON.stringify(result));\nreturn result;"
+      },
+      "id": "calculate-completion",
+      "name": "计算完成度",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "{{ $env.SUPABASE_URL }}/rest/v1/learning_stats",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=representation"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user_id",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "date",
+              "value": "={{ new Date().toISOString().split('T')[0] }}"
+            },
+            {
+              "name": "total_time",
+              "value": "={{ $json.timeSpent }}"
+            },
+            {
+              "name": "lessons_completed",
+              "value": "={{ $json.lessonsCompletedToday }}"
+            },
+            {
+              "name": "courses_completed",
+              "value": "={{ $json.isCourseCompleted ? 1 : 0 }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "update-daily-stats",
+      "name": "更新每日统计",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1820, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "message": "学习进度更新成功",
+          "data": {
+            "userId": "={{ $json.userId }}",
+            "courseId": "={{ $json.courseId }}",
+            "lessonId": "={{ $json.lessonId }}",
+            "lessonProgress": "={{ $json.lessonProgress }}",
+            "courseCompletionRate": "={{ $json.courseCompletionRate }}",
+            "isLessonCompleted": "={{ $json.isLessonCompleted }}",
+            "isCourseCompleted": "={{ $json.isCourseCompleted }}",
+            "totalLessons": "={{ $json.totalLessons }}",
+            "completedLessons": "={{ $json.completedLessons }}"
+          },
+          "timestamp": "={{ $json.timestamp }}"
+        },
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2040, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "message": "学习进度更新成功（未完成课程）",
+          "data": {
+            "userId": "={{ $('提取进度数据').item.json.userId }}",
+            "courseId": "={{ $('提取进度数据').item.json.courseId }}",
+            "lessonId": "={{ $('提取进度数据').item.json.lessonId }}",
+            "progress": "={{ $('提取进度数据').item.json.progress }}",
+            "timeSpent": "={{ $('提取进度数据').item.json.timeSpent }}"
+          },
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "options": {}
+      },
+      "id": "simple-response",
+      "name": "简单响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1380, 480]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "进度数据验证失败",
+          "message": "请确保提供有效的用户ID、课程ID和进度值",
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "error-response",
+      "name": "错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [940, 480]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "学习进度触发器": {
+      "main": [
+        [
+          {
+            "node": "提取进度数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取进度数据": {
+      "main": [
+        [
+          {
+            "node": "验证进度数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证进度数据": {
+      "main": [
+        [
+          {
+            "node": "更新学习进度",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "更新学习进度": {
+      "main": [
+        [
+          {
+            "node": "检查是否完成",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查是否完成": {
+      "main": [
+        [
+          {
+            "node": "获取课程总进度",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "简单响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取课程总进度": {
+      "main": [
+        [
+          {
+            "node": "计算完成度",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "计算完成度": {
+      "main": [
+        [
+          {
+            "node": "更新每日统计",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "更新每日统计": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "learning-progress-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "LearningProgressTracker",
+  "tags": ["learning", "progress", "statistics"]
+}

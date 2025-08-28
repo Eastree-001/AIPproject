@@ -12,7 +12,15 @@
           </h1>
           <p class="page-subtitle">详细查看您的学习历程和成就轨迹</p>
           <div class="header-actions">
-            <el-button type="primary" @click="exportRecords">
+            <el-button type="success" @click="showProgressTracker = true">
+              <el-icon><Plus /></el-icon>
+              记录进度
+            </el-button>
+            <el-button type="primary" @click="showSmartAnalytics = true">
+              <el-icon><TrendCharts /></el-icon>
+              智能分析
+            </el-button>
+            <el-button @click="exportRecords">
               <el-icon><Download /></el-icon>
               导出记录
             </el-button>
@@ -378,6 +386,33 @@
         </span>
       </template>
     </el-dialog>
+
+    <!-- 学习进度记录模态框 -->
+    <el-dialog
+      v-model="showProgressTracker"
+      title="记录学习进度"
+      width="800px"
+      :before-close="handleCloseProgressTracker"
+    >
+      <LearningProgressTracker
+        :userId="currentUserId"
+        @progress-updated="handleProgressUpdated"
+        @view-all-records="showProgressTracker = false"
+      />
+    </el-dialog>
+
+    <!-- 智能学习分析模态框 -->
+    <el-dialog
+      v-model="showSmartAnalytics"
+      title="智能学习分析"
+      width="1000px"
+      :before-close="handleCloseAnalytics"
+    >
+      <SmartLearningAnalytics
+        :userId="currentUserId"
+        ref="smartAnalyticsRef"
+      />
+    </el-dialog>
   </div>
 </template>
 
@@ -386,17 +421,20 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Header from '@/components/Header.vue'
-import { 
-  Document, 
-  Download, 
-  Filter, 
-  Clock, 
-  Reading, 
-  Star, 
+import LearningProgressTracker from '@/components/LearningProgressTracker.vue'
+import SmartLearningAnalytics from '@/components/SmartLearningAnalytics.vue'
+import {
+  Document,
+  Download,
+  Filter,
+  Clock,
+  Reading,
+  Star,
   TrendCharts,
   VideoPlay,
   View,
-  PieChart
+  PieChart,
+  Plus
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -408,7 +446,13 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const showFilterModal = ref(false)
 const showDetailModal = ref(false)
+const showProgressTracker = ref(false)
+const showSmartAnalytics = ref(false)
 const selectedRecord = ref(null)
+const smartAnalyticsRef = ref()
+
+// 用户ID - 从认证状态获取
+const currentUserId = ref('user-123') // 这里应该从实际的认证状态获取
 
 // 筛选表单
 const filterForm = reactive({
@@ -625,6 +669,46 @@ const handleCloseDetail = () => {
 
 const exportRecords = () => {
   ElMessage.success('学习记录导出功能开发中...')
+}
+
+// 🆕 新增方法
+const handleCloseProgressTracker = () => {
+  showProgressTracker.value = false
+}
+
+const handleCloseAnalytics = () => {
+  showSmartAnalytics.value = false
+}
+
+const handleProgressUpdated = (progressData) => {
+  ElMessage.success('学习进度已更新！')
+  console.log('进度更新:', progressData)
+
+  // 刷新学习记录列表
+  loadLearningRecords()
+
+  // 如果有课程完成，可以显示祝贺信息
+  if (progressData.isLessonCompleted) {
+    ElMessage({
+      message: '恭喜完成一个课程！',
+      type: 'success',
+      duration: 3000
+    })
+  }
+
+  if (progressData.isCourseCompleted) {
+    ElMessage({
+      message: '🎉 恭喜完成整门课程！',
+      type: 'success',
+      duration: 5000
+    })
+  }
+}
+
+const loadLearningRecords = () => {
+  // 重新加载学习记录数据
+  console.log('重新加载学习记录...')
+  // 这里应该调用API重新获取数据
 }
 
 // 组件挂载时

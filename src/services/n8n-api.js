@@ -82,9 +82,9 @@ export const learningAPI = {
     return await n8nRequest(`/webhook/learning-records?${queryParams}`)
   },
 
-  // 记录学习进度
+  // 记录学习进度 - 使用新的进度跟踪工作流
   async recordProgress(progressData) {
-    return await n8nRequest('/webhook/learning-progress', {
+    return await n8nRequest('/webhook/api/learning/progress', {
       method: 'POST',
       body: JSON.stringify(progressData)
     })
@@ -98,6 +98,32 @@ export const learningAPI = {
   // 导出学习记录
   async exportRecords(userId, format = 'csv') {
     return await n8nRequest(`/webhook/export-records/${userId}?format=${format}`)
+  },
+
+  // 🆕 智能学习分析 - 新增功能
+  async getSmartAnalytics(userId, analysisType = 'comprehensive', timeRange = 7) {
+    return await n8nRequest('/webhook/api/ai/learning-analytics', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId,
+        analysisType,
+        timeRange
+      })
+    })
+  },
+
+  // 🆕 批量更新学习进度
+  async batchUpdateProgress(progressList) {
+    const results = []
+    for (const progress of progressList) {
+      try {
+        const result = await this.recordProgress(progress)
+        results.push({ success: true, data: result, progress })
+      } catch (error) {
+        results.push({ success: false, error: error.message, progress })
+      }
+    }
+    return results
   }
 }
 
@@ -175,6 +201,31 @@ export const notificationAPI = {
   }
 }
 
+// OKR管理相关API
+export const okrAPI = {
+  // 🆕 自动更新OKR进度
+  async autoUpdateProgress(userId, triggerType = 'learning_activity', activityData = {}) {
+    return await n8nRequest('/webhook/api/okr/auto-update', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId,
+        triggerType,
+        activityData
+      })
+    })
+  },
+
+  // 🆕 手动触发OKR进度计算
+  async recalculateProgress(userId) {
+    return await this.autoUpdateProgress(userId, 'manual_recalculation')
+  },
+
+  // 🆕 获取OKR进度历史
+  async getProgressHistory(okrId) {
+    return await n8nRequest(`/webhook/okr/progress-history/${okrId}`)
+  }
+}
+
 // 数据分析相关API
 export const analyticsAPI = {
   // 获取学习分析数据
@@ -198,6 +249,11 @@ export const analyticsAPI = {
       method: 'POST',
       body: JSON.stringify({ reportType })
     })
+  },
+
+  // 🆕 获取智能学习洞察 - 整合新的分析工作流
+  async getSmartInsights(userId, analysisType = 'comprehensive', timeRange = 7) {
+    return await learningAPI.getSmartAnalytics(userId, analysisType, timeRange)
   }
 }
 
@@ -209,5 +265,6 @@ export default {
   aiTutor: aiTutorAPI,
   community: communityAPI,
   notification: notificationAPI,
-  analytics: analyticsAPI
+  analytics: analyticsAPI,
+  okr: okrAPI  // 🆕 新增OKR API
 }
