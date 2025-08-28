@@ -105,7 +105,7 @@ export const learningAPI = {
 export const aiTutorAPI = {
   // 发送问题
   async askQuestion(questionData) {
-    return await n8nRequest('/webhook/ai-question', {
+    return await n8nRequest('/webhook-test/api/ai/question', {
       method: 'POST',
       body: JSON.stringify(questionData)
     })
@@ -113,12 +113,12 @@ export const aiTutorAPI = {
 
   // 获取学习建议
   async getLearningAdvice(userId) {
-    return await n8nRequest(`/webhook/learning-advice/${userId}`)
+    return await n8nRequest(`/webhook/api/ai/learning-advice/${userId}`)
   },
 
   // 获取个性化推荐
   async getPersonalizedRecommendations(userId) {
-    return await n8nRequest(`/webhook/recommendations/${userId}`)
+    return await n8nRequest(`/webhook/api/ai/recommendations/${userId}`)
   }
 }
 

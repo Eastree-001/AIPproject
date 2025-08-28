@@ -1,127 +1,216 @@
 {
-  "name": "学习建议工作流",
+  "name": "个性化学习建议工作流",
   "nodes": [
     {
       "parameters": {
         "httpMethod": "GET",
-        "path": "learning-advice/{{ $parameter.userId }}",
+        "path": "api/ai/learning-advice/={{ $parameter.userId }}",
         "responseMode": "responseNode",
         "options": {}
       },
       "id": "learning-advice-webhook",
-      "name": "学习建议Webhook",
+      "name": "学习建议触发器",
       "type": "n8n-nodes-base.webhook",
-      "typeVersion": 1,
-      "position": [240, 300],
+      "typeVersion": 2,
+      "position": [280, 300],
       "webhookId": "learning-advice"
     },
     {
       "parameters": {
-        "jsCode": "// 从URL路径提取用户ID\nconst req = $input.first().json;\nconst pathParts = req.path.split('/');\nconst userId = pathParts[pathParts.length - 1];\n\nif (!userId || userId === 'learning-advice') {\n  throw new Error('用户ID缺失');\n}\n\nreturn { \n  userId,\n  timestamp: new Date().toISOString()\n};"
-      },
-      "id": "parse-user-id",
-      "name": "解析用户ID",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [460, 300]
-    },
-    {
-      "parameters": {
-        "operation": "select",
-        "table": "progress",
-        "filterType": "manual",
-        "matchType": "allFilters",
-        "filters": {
-          "conditions": [
+        "assignments": {
+          "assignments": [
             {
-              "keyName": "user_id",
-              "keyValue": "={{ $json.userId }}"
+              "id": "user-id",
+              "name": "userId",
+              "value": "={{ $('学习建议触发器').item.json.params.userId }}",
+              "type": "string"
+            },
+            {
+              "id": "analysis-type",
+              "name": "analysisType",
+              "value": "={{ $('学习建议触发器').item.json.query.type || 'comprehensive' }}",
+              "type": "string"
+            },
+            {
+              "id": "time-range",
+              "name": "timeRange",
+              "value": "={{ parseInt($('学习建议触发器').item.json.query.days) || 30 }}",
+              "type": "number"
             }
           ]
         },
-        "returnFields": "*",
-        "sortKey": "updated_at",
-        "sortDirection": "desc"
+        "options": {}
+      },
+      "id": "extract-parameters",
+      "name": "提取参数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "user-id-valid",
+              "leftValue": "={{ $json.userId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-user-id",
+      "name": "验证用户ID",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "user_progress"
       },
       "id": "get-user-progress",
       "name": "获取学习进度",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [680, 200],
+      "position": [940, 180],
       "credentials": {
-        "supabase": {
+        "supabaseApi": {
           "id": "supabase-credentials",
-          "name": "Supabase"
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "operation": "select",
-        "table": "ai_sessions",
-        "filterType": "manual",
-        "matchType": "allFilters",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "user_id",
-              "keyValue": "={{ $('解析用户ID').first().json.userId }}"
-            }
-          ]
-        },
-        "returnFields": "*",
-        "sortKey": "updated_at",
-        "sortDirection": "desc",
-        "limit": 5
+        "operation": "getAll",
+        "tableId": "learning_stats"
       },
-      "id": "get-recent-questions",
-      "name": "获取最近提问",
+      "id": "get-learning-stats",
+      "name": "获取学习统计",
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
-      "position": [680, 400],
+      "position": [940, 320],
       "credentials": {
-        "supabase": {
+        "supabaseApi": {
           "id": "supabase-credentials",
-          "name": "Supabase"
+          "name": "Supabase API"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// 分析学习数据并生成建议请求\nconst userIdData = $('解析用户ID').first().json;\nconst progressData = $('获取学习进度').first().json || [];\nconst questionsData = $('获取最近提问').first().json || [];\n\n// 分析学习进度\nconst totalCourses = progressData.length;\nconst completedCourses = progressData.filter(p => p.completed).length;\nconst inProgressCourses = progressData.filter(p => !p.completed && p.progress > 0).length;\nconst averageProgress = progressData.length > 0 \n  ? progressData.reduce((sum, p) => sum + (p.progress || 0), 0) / progressData.length \n  : 0;\n\n// 找出薄弱环节（进度低的课程）\nconst weakAreas = progressData\n  .filter(p => !p.completed && p.progress < 30)\n  .sort((a, b) => a.progress - b.progress)\n  .slice(0, 3);\n\n// 分析最近问题的关键词\nconst recentTopics = questionsData.flatMap(session => {\n  if (session.messages && typeof session.messages === 'object') {\n    const content = JSON.stringify(session.messages).toLowerCase();\n    return content.match(/[\\u4e00-\\u9fa5]+/g) || []; // 提取中文关键词\n  }\n  return [];\n}).slice(0, 10);\n\n// 构建学习建议提示词\nconst analysisPrompt = `\n作为专业的学习顾问，请为用户提供个性化的学习建议。\n\n用户学习数据分析：\n- 总课程数：${totalCourses}\n- 已完成课程：${completedCourses}\n- 正在学习课程：${inProgressCourses}\n- 平均进度：${averageProgress.toFixed(1)}%\n- 薄弱环节：${weakAreas.map(w => `课程ID ${w.course_id}（进度${w.progress}%）`).join('、') || '无'}\n- 最近关注话题：${recentTopics.slice(0, 5).join('、') || '无'}\n\n请基于以上数据提供以下建议：\n1. 学习进度评估和改进建议\n2. 针对薄弱环节的具体学习策略\n3. 下一步学习重点和目标设定\n4. 学习方法和时间安排优化建议\n5. 激励和心理调节建议\n\n请用JSON格式回答，格式如下：\n{\n  \"progressAssessment\": \"学习进度评估\",\n  \"weaknessStrategy\": \"薄弱环节策略\",\n  \"nextSteps\": \"下一步建议\",\n  \"methodOptimization\": \"方法优化建议\",\n  \"motivation\": \"激励建议\",\n  \"summary\": \"总结性建议\"\n}\n`;\n\nreturn {\n  url: 'https://api.coze.cn/open_api/v2/chat',\n  headers: {\n    'Authorization': `Bearer ${process.env.COZE_API_KEY}`,\n    'Content-Type': 'application/json',\n    'Accept': 'application/json'\n  },\n  body: {\n    \"conversation_id\": `advice_${userIdData.userId}_${Date.now()}`,\n    \"bot_id\": process.env.COZE_BOT_ID,\n    \"user\": userIdData.userId,\n    \"query\": \"请为我生成个性化的学习建议\",\n    \"chat_history\": [\n      {\n        \"role\": \"system\",\n        \"content\": analysisPrompt\n      }\n    ],\n    \"stream\": false\n  },\n  analysisData: {\n    userId: userIdData.userId,\n    totalCourses,\n    completedCourses,\n    inProgressCourses,\n    averageProgress,\n    weakAreas: weakAreas.length,\n    recentTopics: recentTopics.length\n  }\n};"
+        "operation": "getAll",
+        "tableId": "ai_sessions"
       },
-      "id": "generate-advice-request",
-      "name": "生成建议请求",
+      "id": "get-ai-interactions",
+      "name": "获取AI交互",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 460],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "courses"
+      },
+      "id": "get-available-courses",
+      "name": "获取可用课程",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const params = $('提取参数').first().json;\nconst progressData = $('获取学习进度').first()?.json || [];\nconst statsData = $('获取学习统计').first()?.json || [];\nconst aiInteractions = $('获取AI交互').first()?.json || [];\nconst availableCourses = $('获取可用课程').first()?.json || [];\n\n// 分析学习进度数据\nconst totalLessons = progressData.length;\nconst completedLessons = progressData.filter(p => p.progress === 100).length;\nconst inProgressLessons = progressData.filter(p => p.progress > 0 && p.progress < 100).length;\nconst averageProgress = totalLessons > 0 \n  ? Math.round(progressData.reduce((sum, p) => sum + p.progress, 0) / totalLessons) \n  : 0;\n\n// 分析学习时间统计\nconst totalStudyTime = statsData.reduce((sum, stat) => sum + (stat.total_time || 0), 0);\nconst averageDailyTime = statsData.length > 0 ? Math.round(totalStudyTime / statsData.length / 60) : 0; // 分钟\nconst studyDays = statsData.filter(stat => stat.total_time > 0).length;\nconst consistencyScore = Math.round((studyDays / params.timeRange) * 100);\n\n// 找出学习薄弱环节\nconst strugglingLessons = progressData\n  .filter(p => p.progress < 50 && p.time_spent > 1800) // 花费超过30分钟但进度小于50%\n  .sort((a, b) => b.time_spent - a.time_spent)\n  .slice(0, 5);\n\n// 分析最近的AI提问主题\nconst recentTopics = aiInteractions.map(session => session.topic).slice(0, 5);\n\n// 获取课程完成情况\nconst courseProgress = {};\nprogressData.forEach(p => {\n  if (!courseProgress[p.course_id]) {\n    courseProgress[p.course_id] = { total: 0, completed: 0, timeSpent: 0 };\n  }\n  courseProgress[p.course_id].total += 1;\n  if (p.progress === 100) courseProgress[p.course_id].completed += 1;\n  courseProgress[p.course_id].timeSpent += p.time_spent || 0;\n});\n\nconst completedCourses = Object.keys(courseProgress).filter(courseId => {\n  const course = courseProgress[courseId];\n  return course.completed === course.total && course.total > 0;\n}).length;\n\n// 构建学习分析提示词\nconst analysisPrompt = `\n作为专业的学习分析师和教育顾问，请为学生提供详细的个性化学习建议分析。\n\n## 学生学习数据分析（${params.timeRange}天内）：\n\n### 📊 整体学习情况\n- 总学习课时：${totalLessons}\n- 已完成课时：${completedLessons}\n- 进行中课时：${inProgressLessons}\n- 平均完成度：${averageProgress}%\n- 完成课程数：${completedCourses}\n\n### ⏰ 学习时间分析\n- 总学习时间：${Math.round(totalStudyTime / 3600)}小时${Math.round((totalStudyTime % 3600) / 60)}分钟\n- 日均学习时间：${averageDailyTime}分钟\n- 学习天数：${studyDays}天\n- 学习一致性：${consistencyScore}%\n\n### 💡 学习难点分析\n- 困难课程数量：${strugglingLessons.length}\n- 最近关注话题：${recentTopics.join('、') || '无特定话题'}\n\n### 📚 可选课程数量\n- 可学习课程：${availableCourses.length}门\n\n## 请基于以上数据提供以下方面的详细建议：\n\n1. **学习进度评估**：评价当前学习状态和效率\n2. **时间管理建议**：如何优化学习时间安排\n3. **学习方法优化**：针对学习难点的具体解决策略\n4. **学习路径规划**：下一步学习重点和目标设定\n5. **动机激励建议**：如何保持学习动力和兴趣\n6. **个性化改进方案**：结合学生特点的具体行动计划\n\n请用JSON格式回答，结构如下：\n{\n  \"overallAssessment\": \"整体学习评估\",\n  \"progressAnalysis\": \"学习进度分析\",\n  \"timeManagement\": \"时间管理建议\",\n  \"methodOptimization\": \"学习方法优化\",\n  \"learningPath\": \"学习路径规划\",\n  \"motivationTips\": \"动机激励建议\",\n  \"actionPlan\": \"个性化行动计划\",\n  \"keyInsights\": [\"关键洞察1\", \"关键洞察2\", \"关键洞察3\"],\n  \"recommendations\": [\n    {\n      \"title\": \"建议标题\",\n      \"description\": \"具体建议内容\",\n      \"priority\": \"high|medium|low\",\n      \"timeframe\": \"实施时间框架\"\n    }\n  ]\n}\n`;\n\nreturn {\n  userId: params.userId,\n  analysisType: params.analysisType,\n  timeRange: params.timeRange,\n  learningData: {\n    totalLessons,\n    completedLessons,\n    averageProgress,\n    totalStudyTime,\n    averageDailyTime,\n    consistencyScore,\n    strugglingLessons: strugglingLessons.length,\n    recentTopics: recentTopics.length,\n    availableCourses: availableCourses.length,\n    completedCourses\n  },\n  prompt: analysisPrompt,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "analyze-learning-data",
+      "name": "分析学习数据",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [900, 300]
+      "position": [1160, 380]
     },
     {
       "parameters": {
         "method": "POST",
-        "url": "={{ $json.url }}",
-        "authentication": "none",
-        "requestFormat": "json",
-        "jsonParameters": "={{ $json.body }}",
-        "options": {
-          "headers": "={{ $json.headers }}"
-        }
+        "url": "https://api.coze.cn/open_api/v2/chat",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{ $vars.COZE_API_KEY }}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "json",
+        "body": {
+          "conversation_id": "={{ 'advice_' + $json.userId + '_' + Date.now() }}",
+          "bot_id": "{{ $vars.COZE_BOT_ID }}",
+          "user": "={{ $json.userId }}",
+          "query": "请为我生成详细的个性化学习建议分析报告",
+          "chat_history": [
+            {
+              "role": "system",
+              "content": "={{ $json.prompt }}"
+            }
+          ],
+          "stream": false
+        },
+        "options": {}
       },
-      "id": "call-coze-advice-api",
-      "name": "调用Coze建议API",
+      "id": "call-coze-advice",
+      "name": "调用Coze分析",
       "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4,
-      "position": [1120, 300]
+      "typeVersion": 4.2,
+      "position": [1380, 380],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "coze-api-credentials",
+          "name": "Coze API Auth"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "// 处理AI建议响应\nconst response = $input.first().json;\nconst analysisData = $('生成建议请求').first().json.analysisData;\n\nlet advice = {};\nlet success = false;\n\n// 解析Coze API响应\nif (response && response.code === 0 && response.data) {\n  if (response.data.messages && response.data.messages.length > 0) {\n    const lastMessage = response.data.messages[response.data.messages.length - 1];\n    if (lastMessage.type === 'answer' && lastMessage.content) {\n      try {\n        // 尝试解析JSON格式的建议\n        const content = lastMessage.content;\n        const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n        if (jsonMatch) {\n          advice = JSON.parse(jsonMatch[0]);\n          success = true;\n        } else {\n          // 如果不是JSON格式，使用文本内容\n          advice = {\n            summary: content,\n            progressAssessment: \"请查看详细建议\",\n            weaknessStrategy: \"请查看详细建议\",\n            nextSteps: \"请查看详细建议\",\n            methodOptimization: \"请查看详细建议\",\n            motivation: \"请查看详细建议\"\n          };\n          success = true;\n        }\n      } catch (parseError) {\n        // JSON解析失败，使用原始内容\n        advice = {\n          summary: lastMessage.content,\n          progressAssessment: \"AI建议解析中出现问题，请查看summary\",\n          weaknessStrategy: \"\",\n          nextSteps: \"\",\n          methodOptimization: \"\",\n          motivation: \"\"\n        };\n        success = true;\n      }\n    }\n  }\n}\n\n// 如果AI调用失败，提供默认建议\nif (!success) {\n  advice = {\n    progressAssessment: \"根据您的学习数据，建议保持当前的学习节奏\",\n    weaknessStrategy: \"建议重点关注进度较慢的课程，分配更多时间进行学习\", \n    nextSteps: \"设定明确的短期和长期学习目标，制定详细的学习计划\",\n    methodOptimization: \"尝试不同的学习方法，如番茄工作法、思维导图等\",\n    motivation: \"坚持就是胜利，每天进步一点点就是成功\",\n    summary: \"继续保持学习热情，合理安排时间，相信您会取得更好的成绩！\"\n  };\n}\n\nreturn {\n  success: true,\n  data: {\n    advice,\n    userAnalysis: {\n      totalCourses: analysisData.totalCourses,\n      completedCourses: analysisData.completedCourses,\n      inProgressCourses: analysisData.inProgressCourses,\n      averageProgress: analysisData.averageProgress,\n      weakAreasCount: analysisData.weakAreas,\n      recentTopicsCount: analysisData.recentTopics\n    },\n    timestamp: new Date().toISOString()\n  }\n};"
+        "jsCode": "const response = $input.first().json;\nconst analysisData = $('分析学习数据').first().json;\n\nlet advice = {};\nlet success = false;\n\n// 解析Coze API响应\nif (response && response.code === 0 && response.data) {\n  if (response.data.messages && Array.isArray(response.data.messages)) {\n    const assistantMessages = response.data.messages.filter(msg => \n      msg.type === 'answer' || msg.role === 'assistant'\n    );\n    \n    if (assistantMessages.length > 0) {\n      const lastMessage = assistantMessages[assistantMessages.length - 1];\n      const content = lastMessage.content || lastMessage.text || '';\n      \n      try {\n        // 尝试解析JSON格式的建议\n        const jsonMatch = content.match(/\\{[\\s\\S]*\\}/);\n        if (jsonMatch) {\n          advice = JSON.parse(jsonMatch[0]);\n          success = true;\n        } else {\n          // 如果不是JSON，创建结构化的回复\n          advice = {\n            overallAssessment: content.substring(0, 200) + '...',\n            progressAnalysis: '请查看完整建议内容',\n            timeManagement: '请查看完整建议内容',\n            methodOptimization: '请查看完整建议内容', \n            learningPath: '请查看完整建议内容',\n            motivationTips: '请查看完整建议内容',\n            actionPlan: '请查看完整建议内容',\n            keyInsights: ['AI建议分析中', '请参考完整内容'],\n            fullContent: content\n          };\n          success = true;\n        }\n      } catch (parseError) {\n        // JSON解析失败，使用原始内容\n        advice = {\n          overallAssessment: '基于您的学习数据，我们为您生成了详细的分析报告',\n          progressAnalysis: content,\n          timeManagement: '建议查看详细分析内容',\n          methodOptimization: '建议查看详细分析内容',\n          learningPath: '建议查看详细分析内容',\n          motivationTips: '保持当前的学习节奏，继续努力！',\n          actionPlan: '请参考详细的分析建议制定行动计划',\n          keyInsights: ['学习数据已分析', '建议查看完整内容'],\n          fullContent: content\n        };\n        success = true;\n      }\n    }\n  }\n}\n\n// AI调用失败时的默认建议\nif (!success) {\n  const data = analysisData.learningData;\n  advice = {\n    overallAssessment: `根据${analysisData.timeRange}天的学习数据，您的整体学习表现${data.consistencyScore > 70 ? '良好' : '需要改进'}。`,\n    progressAnalysis: `您已完成${data.completedLessons}个学习单元，平均完成度为${data.averageProgress}%，建议继续保持学习节奏。`,\n    timeManagement: `您的日均学习时间为${data.averageDailyTime}分钟，建议${data.averageDailyTime < 30 ? '增加' : '保持'}当前的学习时长。`,\n    methodOptimization: '建议采用番茄工作法进行时间管理，同时结合笔记整理和定期复习。',\n    learningPath: '建议优先完成进行中的课程，然后选择感兴趣的新课程进行学习。',\n    motivationTips: '学习是一个持续的过程，每天的小进步都值得庆祝！设定小目标，逐步实现大目标。',\n    actionPlan: '建议制定每周学习计划，设定可量化的学习目标，并定期回顾学习进展。',\n    keyInsights: [\n      `学习一致性：${data.consistencyScore}%`,\n      `完成率：${Math.round((data.completedLessons / data.totalLessons) * 100)}%`,\n      `可选课程：${data.availableCourses}门`\n    ]\n  };\n}\n\nreturn {\n  success: true,\n  data: {\n    userId: analysisData.userId,\n    analysisType: analysisData.analysisType,\n    timeRange: analysisData.timeRange,\n    learningMetrics: analysisData.learningData,\n    advice: advice,\n    timestamp: new Date().toISOString()\n  },\n  metadata: {\n    aiResponseSuccess: success,\n    generatedAt: new Date().toISOString()\n  }\n};"
       },
       "id": "process-advice-response",
       "name": "处理建议响应",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 300]
+      "position": [1600, 380]
     },
     {
       "parameters": {
@@ -129,49 +218,77 @@
         "responseBody": "={{ $json.data }}",
         "options": {}
       },
-      "id": "respond-advice",
+      "id": "return-advice",
       "name": "返回学习建议",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1560, 300]
+      "position": [1820, 380]
     },
     {
       "parameters": {
-        "jsCode": "// 建议错误处理\nconst error = $input.first().error;\n\nreturn {\n  success: false,\n  message: '获取学习建议时发生错误，请稍后重试',\n  error: error.message || '未知错误',\n  timestamp: new Date().toISOString()\n};"
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "用户ID不能为空",
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "responseCode": 400,
+        "options": {}
       },
-      "id": "handle-advice-error",
-      "name": "建议错误处理",
+      "id": "validation-error",
+      "name": "验证错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [940, 500]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().error;\nconst params = $('提取参数').first()?.json || {};\n\nreturn {\n  success: false,\n  error: '生成学习建议时发生错误：' + (error.message || '未知错误'),\n  userId: params.userId || null,\n  timestamp: new Date().toISOString(),\n  details: {\n    errorType: error.name || 'UnknownError',\n    errorMessage: error.message || '未知错误'\n  }\n};"
+      },
+      "id": "error-handler",
+      "name": "错误处理",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
-      "position": [1340, 500]
+      "position": [1600, 580]
     },
     {
       "parameters": {
         "respondWith": "json",
         "responseBody": "={{ $json }}",
-        "responseCode": "500",
+        "responseCode": 500,
         "options": {}
       },
-      "id": "error-advice-response",
-      "name": "建议错误响应",
+      "id": "error-response",
+      "name": "错误响应",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
-      "position": [1560, 500]
+      "position": [1820, 580]
     }
   ],
   "connections": {
-    "学习建议Webhook": {
+    "学习建议触发器": {
       "main": [
         [
           {
-            "node": "解析用户ID",
+            "node": "提取参数",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "解析用户ID": {
+    "提取参数": {
+      "main": [
+        [
+          {
+            "node": "验证用户ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证用户ID": {
       "main": [
         [
           {
@@ -180,7 +297,24 @@
             "index": 0
           },
           {
-            "node": "获取最近提问",
+            "node": "获取学习统计",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取AI交互",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取可用课程",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "验证错误响应",
             "type": "main",
             "index": 0
           }
@@ -191,36 +325,58 @@
       "main": [
         [
           {
-            "node": "生成建议请求",
+            "node": "分析学习数据",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "获取最近提问": {
+    "获取学习统计": {
       "main": [
         [
           {
-            "node": "生成建议请求",
+            "node": "分析学习数据",
             "type": "main",
             "index": 1
           }
         ]
       ]
     },
-    "生成建议请求": {
+    "获取AI交互": {
       "main": [
         [
           {
-            "node": "调用Coze建议API",
+            "node": "分析学习数据",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "获取可用课程": {
+      "main": [
+        [
+          {
+            "node": "分析学习数据",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "分析学习数据": {
+      "main": [
+        [
+          {
+            "node": "调用Coze分析",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "调用Coze建议API": {
+    "调用Coze分析": {
       "main": [
         [
           {
@@ -233,7 +389,7 @@
       "error": [
         [
           {
-            "node": "建议错误处理",
+            "node": "错误处理",
             "type": "main",
             "index": 0
           }
@@ -251,11 +407,11 @@
         ]
       ]
     },
-    "建议错误处理": {
+    "错误处理": {
       "main": [
         [
           {
-            "node": "建议错误响应",
+            "node": "错误响应",
             "type": "main",
             "index": 0
           }
@@ -267,10 +423,10 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "1.0.0",
+  "versionId": "2.0.0",
   "meta": {
     "templateCredsSetupCompleted": true
   },
-  "id": "learning-advice-workflow",
-  "tags": ["AI导师", "学习建议", "个性化", "Coze"]
+  "id": "learning-advice-workflow-v2",
+  "tags": ["AI导师", "学习建议", "个性化分析", "Supabase", "Coze", "v2"]
 }

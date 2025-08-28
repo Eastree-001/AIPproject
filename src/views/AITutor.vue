@@ -447,16 +447,11 @@ const sendMessage = async () => {
 }
 
 const generateAIResponse = async (userInput) => {
-  // 尝试多个可能的webhook URL（包括测试URL和生产URL）
+  // 根据n8n工作流配置的正确webhook URL
   const possibleUrls = [
-    'http://localhost:5678/webhook/ai-question',
-    'http://localhost:5678/webhook-test/ai-question', 
-    'http://localhost:5678/webhook/N1ojvcfVVsZUqBcE',  // 使用之前看到的工作流ID
-    'http://localhost:5678/test-webhook/ai-question',
-    // n8n的测试webhook URL格式
-    'http://localhost:5678/webhook-test/N1ojvcfVVsZUqBcE',
-    // 可能的其他格式
-    'http://localhost:5678/webhook/ai-tutor-question'
+    'http://localhost:5678/webhook-test/api/ai/question',  // 测试URL（优先）
+    'http://localhost:5678/webhook/api/ai/question',  // 生产URL
+    'http://localhost:5678/webhook/ai-question'  // 备用URL
   ];
 
   for (let url of possibleUrls) {
