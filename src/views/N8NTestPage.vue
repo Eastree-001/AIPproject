@@ -171,19 +171,19 @@
             <div class="api-info">
               <div class="api-item">
                 <h4>学习进度跟踪</h4>
-                <code>POST /webhook/api/learning/progress</code>
+                <code>POST /webhook-test/api/learning/progress</code>
                 <p>记录和更新用户学习进度，自动计算课程完成度</p>
               </div>
               
               <div class="api-item">
                 <h4>智能学习分析</h4>
-                <code>POST /webhook/api/ai/learning-analytics</code>
+                <code>POST /webhook-test/api/ai/learning-analytics</code>
                 <p>生成AI驱动的学习分析报告和个性化建议</p>
               </div>
               
               <div class="api-item">
                 <h4>OKR自动更新</h4>
-                <code>POST /webhook/api/okr/auto-update</code>
+                <code>POST /webhook-test/api/okr/auto-update</code>
                 <p>基于学习活动自动更新OKR进度</p>
               </div>
             </div>

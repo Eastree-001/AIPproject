@@ -1,0 +1,300 @@
+{
+  "name": "获取课程列表工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "api/courses",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "course-list-webhook",
+      "name": "课程列表触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [280, 300],
+      "webhookId": "course-list"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "page",
+              "name": "page",
+              "value": "={{ parseInt($('课程列表触发器').item.json.query.page) || 1 }}",
+              "type": "number"
+            },
+            {
+              "id": "limit",
+              "name": "limit",
+              "value": "={{ parseInt($('课程列表触发器').item.json.query.limit) || 12 }}",
+              "type": "number"
+            },
+            {
+              "id": "category",
+              "name": "category",
+              "value": "={{ $('课程列表触发器').item.json.query.category || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "search",
+              "name": "search",
+              "value": "={{ $('课程列表触发器').item.json.query.search || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "difficulty",
+              "name": "difficulty",
+              "value": "={{ $('课程列表触发器').item.json.query.difficulty || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "sortBy",
+              "name": "sortBy",
+              "value": "={{ $('课程列表触发器').item.json.query.sortBy || 'created_at' }}",
+              "type": "string"
+            },
+            {
+              "id": "sortOrder",
+              "name": "sortOrder",
+              "value": "={{ $('课程列表触发器').item.json.query.sortOrder || 'desc' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-query-params",
+      "name": "提取查询参数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "courses",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "equals",
+              "keyValue": "active"
+            }
+          ]
+        },
+        "returnAll": true
+      },
+      "id": "get-courses",
+      "name": "获取课程",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [720, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "course_ratings",
+        "returnAll": true
+      },
+      "id": "get-ratings",
+      "name": "获取评分",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [720, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "user_progress",
+        "returnAll": true
+      },
+      "id": "get-enrollments",
+      "name": "获取注册数",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [720, 600],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const courses = $('获取课程').first().json || [];\nconst ratings = $('获取评分').first().json || [];\nconst enrollments = $('获取注册数').first().json || [];\nconst params = $('提取查询参数').first().json;\n\n// 计算每门课程的评分和注册数\nconst courseRatingMap = {};\nconst courseEnrollmentMap = {};\n\n// 处理评分数据\nratings.forEach(rating => {\n  if (!courseRatingMap[rating.course_id]) {\n    courseRatingMap[rating.course_id] = [];\n  }\n  courseRatingMap[rating.course_id].push(rating.rating);\n});\n\n// 处理注册数据\nenrollments.forEach(enrollment => {\n  courseEnrollmentMap[enrollment.course_id] = \n    (courseEnrollmentMap[enrollment.course_id] || 0) + 1;\n});\n\n// 增强课程数据\nlet enhancedCourses = courses.map(course => {\n  const courseRatings = courseRatingMap[course.id] || [];\n  const avgRating = courseRatings.length > 0 ?\n    Math.round((courseRatings.reduce((sum, rating) => sum + rating, 0) / courseRatings.length) * 10) / 10 : 0;\n  \n  return {\n    id: course.id,\n    title: course.title,\n    description: course.description,\n    instructor: course.instructor,\n    duration: course.duration,\n    difficulty: course.difficulty,\n    category: course.category,\n    thumbnail: course.thumbnail,\n    price: course.price,\n    avgRating: avgRating,\n    ratingCount: courseRatings.length,\n    enrollmentCount: courseEnrollmentMap[course.id] || 0,\n    tags: course.tags || [],\n    status: course.status,\n    createdAt: course.created_at,\n    updatedAt: course.updated_at\n  };\n});\n\n// 应用过滤器\nif (params.category) {\n  enhancedCourses = enhancedCourses.filter(course => \n    course.category === params.category\n  );\n}\n\nif (params.difficulty) {\n  enhancedCourses = enhancedCourses.filter(course => \n    course.difficulty === parseInt(params.difficulty)\n  );\n}\n\nif (params.search) {\n  const searchTerm = params.search.toLowerCase();\n  enhancedCourses = enhancedCourses.filter(course => \n    course.title.toLowerCase().includes(searchTerm) ||\n    course.description.toLowerCase().includes(searchTerm) ||\n    course.instructor.toLowerCase().includes(searchTerm) ||\n    (course.tags && course.tags.some(tag => tag.toLowerCase().includes(searchTerm)))\n  );\n}\n\n// 排序\nconst sortBy = params.sortBy;\nconst sortOrder = params.sortOrder;\n\nenhancedCourses.sort((a, b) => {\n  let aValue, bValue;\n  \n  switch (sortBy) {\n    case 'title':\n      aValue = a.title.toLowerCase();\n      bValue = b.title.toLowerCase();\n      break;\n    case 'rating':\n      aValue = a.avgRating;\n      bValue = b.avgRating;\n      break;\n    case 'enrollment':\n      aValue = a.enrollmentCount;\n      bValue = b.enrollmentCount;\n      break;\n    case 'duration':\n      aValue = a.duration;\n      bValue = b.duration;\n      break;\n    case 'price':\n      aValue = a.price;\n      bValue = b.price;\n      break;\n    case 'difficulty':\n      aValue = a.difficulty;\n      bValue = b.difficulty;\n      break;\n    case 'created_at':\n    default:\n      aValue = new Date(a.createdAt).getTime();\n      bValue = new Date(b.createdAt).getTime();\n      break;\n  }\n  \n  if (sortOrder === 'asc') {\n    return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;\n  } else {\n    return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;\n  }\n});\n\n// 分页\nconst page = params.page;\nconst limit = params.limit;\nconst offset = (page - 1) * limit;\nconst totalCourses = enhancedCourses.length;\nconst paginatedCourses = enhancedCourses.slice(offset, offset + limit);\n\n// 统计信息\nconst categories = [...new Set(courses.map(course => course.category).filter(Boolean))];\nconst difficulties = [...new Set(courses.map(course => course.difficulty).filter(Boolean))].sort();\n\nconst result = {\n  courses: paginatedCourses,\n  pagination: {\n    page: page,\n    limit: limit,\n    total: totalCourses,\n    totalPages: Math.ceil(totalCourses / limit),\n    hasNext: offset + limit < totalCourses,\n    hasPrev: page > 1\n  },\n  filters: {\n    categories: categories,\n    difficulties: difficulties,\n    applied: {\n      category: params.category,\n      difficulty: params.difficulty,\n      search: params.search,\n      sortBy: params.sortBy,\n      sortOrder: params.sortOrder\n    }\n  },\n  stats: {\n    totalCourses: courses.length,\n    filteredCourses: totalCourses,\n    avgRating: courses.length > 0 ? \n      Math.round((courses.reduce((sum, course) => {\n        const courseRatings = courseRatingMap[course.id] || [];\n        const avgRating = courseRatings.length > 0 ?\n          courseRatings.reduce((sum, rating) => sum + rating, 0) / courseRatings.length : 0;\n        return sum + avgRating;\n      }, 0) / courses.length) * 10) / 10 : 0,\n    totalEnrollments: Object.values(courseEnrollmentMap).reduce((sum, count) => sum + count, 0)\n  },\n  timestamp: new Date().toISOString()\n};\n\nreturn result;"
+      },
+      "id": "process-course-list",
+      "name": "处理课程列表",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 400]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "data": "={{ $json }}",
+          "timestamp": "={{ $json.timestamp }}"
+        },
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1160, 400]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().error;\n\nreturn {\n  success: false,\n  error: '获取课程列表时发生错误：' + (error.message || '未知错误'),\n  timestamp: new Date().toISOString(),\n  details: {\n    errorType: error.name || 'UnknownError',\n    errorMessage: error.message || '未知错误'\n  }\n};"
+      },
+      "id": "error-handler",
+      "name": "错误处理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [940, 600]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "responseCode": 500,
+        "options": {}
+      },
+      "id": "error-response",
+      "name": "错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1160, 600]
+    }
+  ],
+  "connections": {
+    "课程列表触发器": {
+      "main": [
+        [
+          {
+            "node": "提取查询参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取查询参数": {
+      "main": [
+        [
+          {
+            "node": "获取课程",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取评分",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取注册数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取课程": {
+      "main": [
+        [
+          {
+            "node": "处理课程列表",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取评分": {
+      "main": [
+        [
+          {
+            "node": "处理课程列表",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "获取注册数": {
+      "main": [
+        [
+          {
+            "node": "处理课程列表",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "处理课程列表": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "错误处理": {
+      "main": [
+        [
+          {
+            "node": "错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "course-list-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "CourseListWorkflow",
+  "tags": ["courses", "list", "pagination", "search", "supabase"]
+}

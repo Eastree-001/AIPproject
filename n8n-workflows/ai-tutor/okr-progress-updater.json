@@ -49,78 +49,111 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/okrs?user_id=eq.{{ $json.userId }}&status=eq.active&select=*",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "okrs",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "keyName": "user_id",
+              "condition": "equals",
+              "keyValue": "={{ $json.userId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "keyName": "status",
+              "condition": "equals",
+              "keyValue": "active"
             }
           ]
         },
-        "options": {}
+        "returnAll": true
       },
       "id": "get-active-okrs",
       "name": "获取活跃OKR",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [720, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [720, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/user_progress?user_id=eq.{{ $('提取更新参数').item.json.userId }}&progress=gte.100&select=course_id,lesson_id,completed_at",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "user_progress",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "keyName": "user_id",
+              "condition": "equals",
+              "keyValue": "={{ $('提取更新参数').item.json.userId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "keyName": "progress",
+              "condition": "largerEqual",
+              "keyValue": "100"
             }
           ]
         },
-        "options": {}
+        "returnAll": true,
+        "additionalFields": {
+          "columns": "course_id,lesson_id,completed_at"
+        }
       },
       "id": "get-completed-lessons",
       "name": "获取已完成课程",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [940, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/learning_stats?user_id=eq.{{ $('提取更新参数').item.json.userId }}&date=gte.{{ new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}&select=*",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "learning_stats",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "keyName": "user_id",
+              "condition": "equals",
+              "keyValue": "={{ $('提取更新参数').item.json.userId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "keyName": "date",
+              "condition": "largerEqual",
+              "keyValue": "={{ new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}"
             }
           ]
         },
-        "options": {}
+        "returnAll": true
       },
       "id": "get-learning-stats",
       "name": "获取学习统计",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1160, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1160, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
@@ -173,95 +206,86 @@
     },
     {
       "parameters": {
-        "method": "PATCH",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/okrs?id=eq.{{ $json.okrId }}",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "update",
+        "tableId": "okrs",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
-            },
-            {
-              "name": "Prefer",
-              "value": "return=representation"
+              "keyName": "id",
+              "condition": "equals",
+              "keyValue": "={{ $json.okrId }}"
             }
           ]
         },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
+        "fieldsUi": {
+          "fieldValues": [
             {
-              "name": "progress",
-              "value": "={{ $json.newProgress }}"
+              "fieldId": "progress",
+              "fieldValue": "={{ $json.newProgress }}"
             },
             {
-              "name": "status",
-              "value": "={{ $json.isCompleted ? 'completed' : 'active' }}"
+              "fieldId": "status",
+              "fieldValue": "={{ $json.isCompleted ? 'completed' : 'active' }}"
             },
             {
-              "name": "updated_at",
-              "value": "={{ new Date().toISOString() }}"
+              "fieldId": "updated_at",
+              "fieldValue": "={{ new Date().toISOString() }}"
             }
           ]
-        },
-        "options": {}
+        }
       },
       "id": "update-okr-progress",
       "name": "更新OKR进度",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2040, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2040, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/okr_progress",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "okr_progress",
+        "fieldsUi": {
+          "fieldValues": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "fieldId": "okr_id",
+              "fieldValue": "={{ $('准备更新请求').item.json.okrId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "fieldId": "user_id",
+              "fieldValue": "={{ $('计算OKR进度').item.json.userId }}"
+            },
+            {
+              "fieldId": "progress",
+              "fieldValue": "={{ $('准备更新请求').item.json.newProgress }}"
+            },
+            {
+              "fieldId": "notes",
+              "fieldValue": "={{ $('准备更新请求').item.json.updateReason }}"
             }
           ]
-        },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "okr_id",
-              "value": "={{ $('准备更新请求').item.json.okrId }}"
-            },
-            {
-              "name": "user_id",
-              "value": "={{ $('计算OKR进度').item.json.userId }}"
-            },
-            {
-              "name": "progress",
-              "value": "={{ $('准备更新请求').item.json.newProgress }}"
-            },
-            {
-              "name": "notes",
-              "value": "={{ $('准备更新请求').item.json.updateReason }}"
-            }
-          ]
-        },
-        "options": {}
+        }
       },
       "id": "record-progress-history",
       "name": "记录进度历史",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [2260, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [2260, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {

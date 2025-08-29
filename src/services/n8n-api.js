@@ -37,25 +37,47 @@ export const authAPI = {
 
 // 课程管理相关API
 export const courseAPI = {
-  // 获取所有课程
-  async getAllCourses() {
-    return await n8nRequest('/webhook/courses')
+  // 获取所有课程 - 使用新的课程列表工作流
+  async getAllCourses(params = {}) {
+    const queryParams = new URLSearchParams(params)
+    return await n8nRequest(`/webhook/course-list?${queryParams}`)
   },
 
-  // 获取单个课程
-  async getCourse(courseId) {
-    return await n8nRequest(`/webhook/courses/${courseId}`)
+  // 获取单个课程 - 使用新的课程详情工作流
+  async getCourse(courseId, userId = '') {
+    return await n8nRequest(`/webhook/course-details/${courseId}?userId=${userId}`)
   },
 
-  // 创建课程
+  // 创建课程 - 使用新的创建课程工作流
   async createCourse(courseData) {
-    return await n8nRequest('/webhook/courses', {
+    return await n8nRequest('/webhook/api/courses/create', {
       method: 'POST',
       body: JSON.stringify(courseData)
     })
   },
 
-  // 更新课程
+  // 获取课程统计信息
+  async getCourseStats(userId = 'global') {
+    return await n8nRequest('/webhook/api/courses/stats', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: userId
+      })
+    })
+  },
+
+  // 获取课程推荐
+  async getRecommendedCourses(userId, params = {}) {
+    return await n8nRequest('/webhook/api/courses/recommend', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: userId,
+        ...params
+      })
+    })
+  },
+
+  // 更新课程 - 保留原有功能
   async updateCourse(courseId, updates) {
     return await n8nRequest(`/webhook/courses/${courseId}`, {
       method: 'PUT',
@@ -63,7 +85,7 @@ export const courseAPI = {
     })
   },
 
-  // 删除课程
+  // 删除课程 - 保留原有功能
   async deleteCourse(courseId) {
     return await n8nRequest(`/webhook/courses/${courseId}`, {
       method: 'DELETE'
@@ -84,7 +106,7 @@ export const learningAPI = {
 
   // 记录学习进度 - 使用新的进度跟踪工作流
   async recordProgress(progressData) {
-    return await n8nRequest('/webhook/api/learning/progress', {
+    return await n8nRequest('/webhook-test/api/learning/progress', {
       method: 'POST',
       body: JSON.stringify(progressData)
     })
@@ -92,17 +114,17 @@ export const learningAPI = {
 
   // 获取学习统计
   async getLearningStats(userId) {
-    return await n8nRequest(`/webhook/learning-stats/${userId}`)
+    return await n8nRequest(`/webhook-test/learning-stats/${userId}`)
   },
 
   // 导出学习记录
   async exportRecords(userId, format = 'csv') {
-    return await n8nRequest(`/webhook/export-records/${userId}?format=${format}`)
+    return await n8nRequest(`/webhook-test/export-records/${userId}?format=${format}`)
   },
 
   // 🆕 智能学习分析 - 新增功能
   async getSmartAnalytics(userId, analysisType = 'comprehensive', timeRange = 7) {
-    return await n8nRequest('/webhook/api/ai/learning-analytics', {
+    return await n8nRequest('/webhook-test/api/ai/learning-analytics', {
       method: 'POST',
       body: JSON.stringify({
         userId,
@@ -139,12 +161,12 @@ export const aiTutorAPI = {
 
   // 获取学习建议
   async getLearningAdvice(userId) {
-    return await n8nRequest(`/webhook/api/ai/learning-advice/${userId}`)
+    return await n8nRequest(`/webhook-test/api/ai/learning-advice/${userId}`)
   },
 
   // 获取个性化推荐
   async getPersonalizedRecommendations(userId) {
-    return await n8nRequest(`/webhook/api/ai/recommendations/${userId}`)
+    return await n8nRequest(`/webhook-test/api/ai/recommendations/${userId}`)
   }
 }
 
@@ -153,12 +175,12 @@ export const communityAPI = {
   // 获取帖子列表
   async getPosts(filters = {}) {
     const queryParams = new URLSearchParams(filters)
-    return await n8nRequest(`/webhook/posts?${queryParams}`)
+    return await n8nRequest(`/webhook-test/posts?${queryParams}`)
   },
 
   // 创建帖子
   async createPost(postData) {
-    return await n8nRequest('/webhook/posts', {
+    return await n8nRequest('/webhook-test/posts', {
       method: 'POST',
       body: JSON.stringify(postData)
     })
@@ -166,12 +188,12 @@ export const communityAPI = {
 
   // 获取评论
   async getComments(postId) {
-    return await n8nRequest(`/webhook/posts/${postId}/comments`)
+    return await n8nRequest(`/webhook-test/posts/${postId}/comments`)
   },
 
   // 添加评论
   async addComment(postId, commentData) {
-    return await n8nRequest(`/webhook/posts/${postId}/comments`, {
+    return await n8nRequest(`/webhook-test/posts/${postId}/comments`, {
       method: 'POST',
       body: JSON.stringify(commentData)
     })
@@ -182,19 +204,19 @@ export const communityAPI = {
 export const notificationAPI = {
   // 获取用户通知
   async getUserNotifications(userId) {
-    return await n8nRequest(`/webhook/notifications/${userId}`)
+    return await n8nRequest(`/webhook-test/notifications/${userId}`)
   },
 
   // 标记通知为已读
   async markAsRead(notificationId) {
-    return await n8nRequest(`/webhook/notifications/${notificationId}/read`, {
+    return await n8nRequest(`/webhook-test/notifications/${notificationId}/read`, {
       method: 'PUT'
     })
   },
 
   // 发送通知
   async sendNotification(notificationData) {
-    return await n8nRequest('/webhook/notifications', {
+    return await n8nRequest('/webhook-test/notifications', {
       method: 'POST',
       body: JSON.stringify(notificationData)
     })
@@ -205,7 +227,7 @@ export const notificationAPI = {
 export const okrAPI = {
   // 🆕 自动更新OKR进度
   async autoUpdateProgress(userId, triggerType = 'learning_activity', activityData = {}) {
-    return await n8nRequest('/webhook/api/okr/auto-update', {
+    return await n8nRequest('/webhook-test/api/okr/auto-update', {
       method: 'POST',
       body: JSON.stringify({
         userId,
@@ -222,7 +244,7 @@ export const okrAPI = {
 
   // 🆕 获取OKR进度历史
   async getProgressHistory(okrId) {
-    return await n8nRequest(`/webhook/okr/progress-history/${okrId}`)
+    return await n8nRequest(`/webhook-test/okr/progress-history/${okrId}`)
   }
 }
 
@@ -235,17 +257,17 @@ export const analyticsAPI = {
       startDate: dateRange.start,
       endDate: dateRange.end
     })
-    return await n8nRequest(`/webhook/analytics/learning?${queryParams}`)
+    return await n8nRequest(`/webhook-test/analytics/learning?${queryParams}`)
   },
 
   // 获取用户行为分析
   async getUserBehaviorAnalytics(userId) {
-    return await n8nRequest(`/webhook/analytics/behavior/${userId}`)
+    return await n8nRequest(`/webhook-test/analytics/behavior/${userId}`)
   },
 
   // 生成学习报告
   async generateLearningReport(userId, reportType) {
-    return await n8nRequest(`/webhook/analytics/report/${userId}`, {
+    return await n8nRequest(`/webhook-test/analytics/report/${userId}`, {
       method: 'POST',
       body: JSON.stringify({ reportType })
     })

@@ -1,0 +1,41 @@
+{
+  "name": "Supabase Users Table Connection Test",
+  "nodes": [
+    {
+      "parameters": {},
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger"
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "table": "users",
+        "limit": 5
+      },
+      "name": "Query Users Table",
+      "type": "n8n-nodes-base.supabase"
+    },
+    {
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "test_status",
+              "value": "SUCCESS"
+            },
+            {
+              "name": "test_time",
+              "value": "={{ new Date().toISOString() }}"
+            },
+            {
+              "name": "records_found",
+              "value": "={{ $json.length }}"
+            }
+          ]
+        }
+      },
+      "name": "Format Test Result",
+      "type": "n8n-nodes-base.set"
+    }
+  ]
+}

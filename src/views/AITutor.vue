@@ -450,8 +450,8 @@ const generateAIResponse = async (userInput) => {
   // 根据n8n工作流配置的正确webhook URL
   const possibleUrls = [
     'http://localhost:5678/webhook-test/api/ai/question',  // 测试URL（优先）
-    'http://localhost:5678/webhook/api/ai/question',  // 生产URL
-    'http://localhost:5678/webhook/ai-question'  // 备用URL
+    'http://localhost:5678/webhook/api/ai/question',  // 生产URL（临时切到测试）
+    'http://localhost:5678/webhook-test/ai-question'  // 备用URL（临时切到测试）
   ];
 
   for (let url of possibleUrls) {

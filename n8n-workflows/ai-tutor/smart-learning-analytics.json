@@ -36,6 +36,12 @@
               "name": "timeRange",
               "value": "={{ parseInt($('学习分析触发器').item.json.body.timeRange) || 7 }}",
               "type": "number"
+            },
+            {
+              "id": "time-start",
+              "name": "startDate",
+              "value": "={{ new Date(Date.now() - (parseInt($('学习分析触发器').item.json.body.timeRange) || 7) * 24 * 60 * 60 * 1000).toISOString().slice(0,10) }}",
+              "type": "string"
             }
           ]
         },
@@ -49,82 +55,107 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/learning_stats?user_id=eq.{{ $json.userId }}&date=gte.{{ new Date(Date.now() - $json.timeRange * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }}&select=*",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "learning_stats",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "keyName": "user_id",
+              "condition": "equals",
+              "keyValue": "={{ $json.userId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "keyName": "date",
+              "condition": "largerEqual",
+              "keyValue": "={{ $json.startDate }}"
             }
           ]
         },
-        "options": {}
+        "returnAll": true
       },
       "id": "get-learning-stats",
       "name": "获取学习统计",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [720, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [720, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/user_progress?user_id=eq.{{ $('提取分析参数').item.json.userId }}&select=*,courses(title,category,difficulty)",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "user_progress",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
-            },
-            {
-              "name": "Content-Type",
-              "value": "application/json"
+              "keyName": "user_id",
+              "condition": "equals",
+              "keyValue": "={{ $('提取分析参数').item.json.userId }}"
             }
           ]
         },
-        "options": {}
+        "returnAll": true
       },
       "id": "get-progress-data",
       "name": "获取进度数据",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [940, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/okrs?user_id=eq.{{ $('提取分析参数').item.json.userId }}&status=eq.active&select=*",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "okrs",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "keyName": "user_id",
+              "condition": "equals",
+              "keyValue": "={{ $('提取分析参数').item.json.userId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "keyName": "status",
+              "condition": "equals",
+              "keyValue": "active"
             }
           ]
         },
-        "options": {}
+        "returnAll": true
       },
       "id": "get-okr-data",
       "name": "获取OKR数据",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1160, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1160, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
-        "jsCode": "const statsData = $('获取学习统计').first().json || [];\nconst progressData = $('获取进度数据').first().json || [];\nconst okrData = $('获取OKR数据').first().json || [];\nconst params = $('提取分析参数').first().json;\n\nconsole.log('分析数据汇总 - 统计:', statsData.length, '进度:', progressData.length, 'OKR:', okrData.length);\n\n// 计算学习统计\nlet totalTime = 0;\nlet totalLessons = 0;\nlet totalCourses = 0;\nlet dailyStats = [];\n\nstatsData.forEach(stat => {\n  totalTime += stat.total_time || 0;\n  totalLessons += stat.lessons_completed || 0;\n  totalCourses += stat.courses_completed || 0;\n  dailyStats.push({\n    date: stat.date,\n    time: stat.total_time || 0,\n    lessons: stat.lessons_completed || 0\n  });\n});\n\n// 计算课程进度分析\nlet courseAnalysis = {};\nlet completedCourses = 0;\nlet inProgressCourses = 0;\n\nprogressData.forEach(progress => {\n  const courseId = progress.course_id;\n  if (!courseAnalysis[courseId]) {\n    courseAnalysis[courseId] = {\n      courseId: courseId,\n      title: progress.courses?.title || 'Unknown Course',\n      category: progress.courses?.category || 'General',\n      difficulty: progress.courses?.difficulty || 'beginner',\n      totalProgress: 0,\n      lessonsCount: 0,\n      completedLessons: 0\n    };\n  }\n  \n  courseAnalysis[courseId].totalProgress += progress.progress || 0;\n  courseAnalysis[courseId].lessonsCount++;\n  if (progress.progress >= 100) {\n    courseAnalysis[courseId].completedLessons++;\n  }\n});\n\n// 计算每门课程的完成率\nObject.values(courseAnalysis).forEach(course => {\n  course.completionRate = course.lessonsCount > 0 ? \n    Math.round(course.totalProgress / course.lessonsCount) : 0;\n  \n  if (course.completionRate >= 100) {\n    completedCourses++;\n  } else if (course.completionRate > 0) {\n    inProgressCourses++;\n  }\n});\n\n// OKR分析\nlet okrAnalysis = okrData.map(okr => ({\n  id: okr.id,\n  title: okr.title,\n  objective: okr.objective,\n  progress: okr.progress || 0,\n  keyResults: okr.key_results || [],\n  targetDate: okr.target_date,\n  daysRemaining: okr.target_date ? \n    Math.ceil((new Date(okr.target_date) - new Date()) / (1000 * 60 * 60 * 24)) : null\n}));\n\n// 学习模式分析\nconst avgDailyTime = dailyStats.length > 0 ? totalTime / dailyStats.length : 0;\nconst avgDailyLessons = dailyStats.length > 0 ? totalLessons / dailyStats.length : 0;\n\n// 构建分析结果\nconst analysisResult = {\n  userId: params.userId,\n  analysisType: params.analysisType,\n  timeRange: params.timeRange,\n  summary: {\n    totalStudyTime: totalTime,\n    totalLessonsCompleted: totalLessons,\n    totalCoursesCompleted: totalCourses,\n    avgDailyStudyTime: Math.round(avgDailyTime),\n    avgDailyLessons: Math.round(avgDailyLessons * 10) / 10,\n    activeCourses: inProgressCourses,\n    completedCourses: completedCourses\n  },\n  courseProgress: Object.values(courseAnalysis),\n  okrProgress: okrAnalysis,\n  dailyStats: dailyStats,\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('学习分析结果:', JSON.stringify(analysisResult, null, 2));\nreturn analysisResult;"
+        "jsCode": "const statsData = $('获取学习统计').first().json || [];\nconst progressData = $('获取进度数据').first().json || [];\nconst okrData = $('获取OKR数据').first().json || [];\nconst params = $('提取分析参数').first().json;\n\nconsole.log('分析数据汇总 - 统计:', statsData.length, '进度:', progressData.length, 'OKR:', okrData.length);\n\n// 计算学习统计\nlet totalTime = 0;\nlet totalLessons = 0;\nlet totalCourses = 0;\nlet dailyStats = [];\n\nstatsData.forEach(stat => {\n  totalTime += stat.total_time || 0;\n  totalLessons += stat.lessons_completed || 0;\n  totalCourses += stat.courses_completed || 0;\n  dailyStats.push({\n    date: stat.date,\n    time: stat.total_time || 0,\n    lessons: stat.lessons_completed || 0\n  });\n});\n\n// 计算课程进度分析\nlet courseAnalysis = {};\nlet completedCourses = 0;\nlet inProgressCourses = 0;\n\nprogressData.forEach(progress => {\n  const courseId = progress.course_id;\n  if (!courseAnalysis[courseId]) {\n    courseAnalysis[courseId] = {\n      courseId: courseId,\n      title: progress.course_title || 'Unknown Course',\n      category: progress.course_category || 'General',\n      difficulty: progress.course_difficulty || 'beginner',\n      totalProgress: 0,\n      lessonsCount: 0,\n      completedLessons: 0\n    };\n  }\n  \n  courseAnalysis[courseId].totalProgress += progress.progress || 0;\n  courseAnalysis[courseId].lessonsCount++;\n  if (progress.progress >= 100) {\n    courseAnalysis[courseId].completedLessons++;\n  }\n});\n\n// 计算每门课程的完成率\nObject.values(courseAnalysis).forEach(course => {\n  course.completionRate = course.lessonsCount > 0 ? \n    Math.round(course.totalProgress / course.lessonsCount) : 0;\n  \n  if (course.completionRate >= 100) {\n    completedCourses++;\n  } else if (course.completionRate > 0) {\n    inProgressCourses++;\n  }\n});\n\n// OKR分析\nlet okrAnalysis = okrData.map(okr => ({\n  id: okr.id,\n  title: okr.title,\n  objective: okr.objective,\n  progress: okr.progress || 0,\n  keyResults: okr.key_results || [],\n  targetDate: okr.target_date,\n  daysRemaining: okr.target_date ? \n    Math.ceil((new Date(okr.target_date) - new Date()) / (1000 * 60 * 60 * 24)) : null\n}));\n\n// 学习模式分析\nconst avgDailyTime = dailyStats.length > 0 ? totalTime / dailyStats.length : 0;\nconst avgDailyLessons = dailyStats.length > 0 ? totalLessons / dailyStats.length : 0;\n\n// 构建分析结果\nconst analysisResult = {\n  userId: params.userId,\n  analysisType: params.analysisType,\n  timeRange: params.timeRange,\n  summary: {\n    totalStudyTime: totalTime,\n    totalLessonsCompleted: totalLessons,\n    totalCoursesCompleted: totalCourses,\n    avgDailyStudyTime: Math.round(avgDailyTime),\n    avgDailyLessons: Math.round(avgDailyLessons * 10) / 10,\n    activeCourses: inProgressCourses,\n    completedCourses: completedCourses\n  },\n  courseProgress: Object.values(courseAnalysis),\n  okrProgress: okrAnalysis,\n  dailyStats: dailyStats,\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('学习分析结果:', JSON.stringify(analysisResult, null, 2));\nreturn analysisResult;"
       },
       "id": "analyze-learning-data",
       "name": "分析学习数据",

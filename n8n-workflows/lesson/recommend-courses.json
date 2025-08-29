@@ -1,0 +1,225 @@
+{
+  "name": "recommend-courses",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/courses/recommend",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bce98e5e-ba02-4c2b-b8f5-8a042f3683e2",
+      "name": "推荐触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -1216,
+        -64
+      ],
+      "webhookId": "recommend-courses"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "user-id",
+              "name": "userId",
+              "value": "={{ $('推荐触发器').item.json.params.userId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "limit",
+              "name": "limit",
+              "value": "={{ parseInt($('推荐触发器').item.json.query.limit) || 6 }}",
+              "type": "number"
+            },
+            {
+              "id": "category",
+              "name": "category",
+              "value": "={{ $('推荐触发器').item.json.query.category || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "efe1e577-7b08-43bd-ba97-6d2e69b6873a",
+      "name": "提取参数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -992,
+        -64
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "user_progress",
+        "returnAll": true
+      },
+      "id": "4745e414-52aa-4488-b746-dfe7e262f6cb",
+      "name": "获取用户进度",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        -160
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "2TE2YXKMiUB3ycFh",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "courses",
+        "returnAll": true
+      },
+      "id": "7ff501b4-dd08-4b25-9197-6652c9d452e1",
+      "name": "获取所有课程",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        48
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "2TE2YXKMiUB3ycFh",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "course_ratings",
+        "returnAll": true
+      },
+      "id": "9a5e87ef-3341-4a8d-9920-fbc793ed533f",
+      "name": "获取课程评分",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -768,
+        240
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "2TE2YXKMiUB3ycFh",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const userProgress = $('获取用户进度').first().json || [];\nconst allCourses = $('获取所有课程').first().json || [];\nconst courseRatings = $('获取课程评分').first().json || [];\nconst params = $('提取参数').first().json;\nconst userId = params.userId;\nconst limit = params.limit || 6;\nconst categoryFilter = params.category;\n\n// 获取用户已学习的课程ID\nconst userCourseIds = new Set(userProgress.map(p => p.course_id));\n\n// 计算每门课程的平均评分\nconst courseRatingMap = {};\ncourseRatings.forEach(rating => {\n  if (!courseRatingMap[rating.course_id]) {\n    courseRatingMap[rating.course_id] = [];\n  }\n  courseRatingMap[rating.course_id].push(rating.rating);\n});\n\n// 计算平均评分\nObject.keys(courseRatingMap).forEach(courseId => {\n  const ratings = courseRatingMap[courseId];\n  courseRatingMap[courseId] = {\n    avgRating: ratings.reduce((sum, rating) => sum + rating, 0) / ratings.length,\n    ratingCount: ratings.length\n  };\n});\n\n// 获取用户学习的课程分类偏好\nconst userCategories = {};\nconst userCompletedCourses = userProgress.filter(p => p.progress >= 100);\nuserCompletedCourses.forEach(progress => {\n  const course = allCourses.find(c => c.id === progress.course_id);\n  if (course && course.category) {\n    userCategories[course.category] = (userCategories[course.category] || 0) + 1;\n  }\n});\n\n// 获取用户偏好的分类（按完成课程数排序）\nconst preferredCategories = Object.entries(userCategories)\n  .sort(([,a], [,b]) => b - a)\n  .map(([category]) => category);\n\n// 过滤可推荐的课程（排除已学习的）\nlet availableCourses = allCourses.filter(course => \n  !userCourseIds.has(course.id) && course.status === 'active'\n);\n\n// 如果指定了分类，进行分类过滤\nif (categoryFilter) {\n  availableCourses = availableCourses.filter(course => \n    course.category === categoryFilter\n  );\n}\n\n// 计算推荐分数\nconst scoredCourses = availableCourses.map(course => {\n  let score = 0;\n  \n  // 基础分数：课程评分 (0-50分)\n  const ratingInfo = courseRatingMap[course.id];\n  if (ratingInfo) {\n    score += (ratingInfo.avgRating / 5) * 50;\n    // 评分数量加成 (0-10分)\n    score += Math.min(ratingInfo.ratingCount / 10, 1) * 10;\n  } else {\n    score += 20; // 新课程默认分数\n  }\n  \n  // 分类偏好加成 (0-30分)\n  if (course.category && preferredCategories.includes(course.category)) {\n    const categoryIndex = preferredCategories.indexOf(course.category);\n    score += (30 - categoryIndex * 5); // 越偏好的分类分数越高\n  }\n  \n  // 课程热度加成 (0-10分)\n  const enrollmentCount = userProgress.filter(p => p.course_id === course.id).length;\n  score += Math.min(enrollmentCount / 5, 1) * 10;\n  \n  // 课程难度匹配 (0-10分)\n  if (course.difficulty) {\n    // 根据用户完成课程的平均难度来匹配\n    const userAvgDifficulty = userCompletedCourses.length > 0 ?\n      userCompletedCourses.reduce((sum, progress) => {\n        const userCourse = allCourses.find(c => c.id === progress.course_id);\n        return sum + (userCourse?.difficulty || 1);\n      }, 0) / userCompletedCourses.length : 1;\n    \n    const difficultyDiff = Math.abs(course.difficulty - userAvgDifficulty);\n    score += Math.max(10 - difficultyDiff * 3, 0);\n  }\n  \n  return {\n    ...course,\n    recommendScore: Math.round(score * 10) / 10,\n    avgRating: ratingInfo ? Math.round(ratingInfo.avgRating * 10) / 10 : 0,\n    ratingCount: ratingInfo ? ratingInfo.ratingCount : 0,\n    enrollmentCount: enrollmentCount\n  };\n});\n\n// 按推荐分数排序并限制数量\nconst recommendedCourses = scoredCourses\n  .sort((a, b) => b.recommendScore - a.recommendScore)\n  .slice(0, limit)\n  .map(course => ({\n    id: course.id,\n    title: course.title,\n    description: course.description,\n    instructor: course.instructor,\n    duration: course.duration,\n    difficulty: course.difficulty,\n    category: course.category,\n    thumbnail: course.thumbnail,\n    price: course.price,\n    avgRating: course.avgRating,\n    ratingCount: course.ratingCount,\n    enrollmentCount: course.enrollmentCount,\n    recommendScore: course.recommendScore,\n    tags: course.tags || [],\n    createdAt: course.created_at,\n    updatedAt: course.updated_at\n  }));\n\n// 推荐理由\nconst getRecommendReason = (course) => {\n  const reasons = [];\n  \n  if (course.avgRating >= 4.5) {\n    reasons.push('高评分课程');\n  }\n  \n  if (course.category && preferredCategories.includes(course.category)) {\n    reasons.push('符合您的学习偏好');\n  }\n  \n  if (course.enrollmentCount > 10) {\n    reasons.push('热门课程');\n  }\n  \n  if (course.ratingCount === 0) {\n    reasons.push('新课程');\n  }\n  \n  return reasons.length > 0 ? reasons.join('、') : '为您精选';\n};\n\n// 添加推荐理由\nrecommendedCourses.forEach(course => {\n  course.recommendReason = getRecommendReason(course);\n});\n\nconst result = {\n  courses: recommendedCourses,\n  total: recommendedCourses.length,\n  hasMore: availableCourses.length > limit,\n  userPreferences: {\n    preferredCategories: preferredCategories.slice(0, 3),\n    completedCoursesCount: userCompletedCourses.length,\n    totalProgressCount: userProgress.length\n  },\n  filters: {\n    category: categoryFilter,\n    limit: limit\n  },\n  timestamp: new Date().toISOString()\n};\n\nreturn result;"
+      },
+      "id": "0860a77c-17b8-499a-be42-5c2f9832d93e",
+      "name": "计算推荐",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -544,
+        48
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "data": "={{ $json }}",
+          "timestamp": "={{ $json.timestamp }}"
+        },
+        "options": {}
+      },
+      "id": "2bfc85c6-6414-41d6-99cf-605358b40417",
+      "name": "成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        -336,
+        48
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "推荐触发器": {
+      "main": [
+        [
+          {
+            "node": "提取参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取参数": {
+      "main": [
+        [
+          {
+            "node": "获取用户进度",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取所有课程",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取课程评分",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取用户进度": {
+      "main": [
+        []
+      ]
+    },
+    "计算推荐": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取课程评分": {
+      "main": [
+        [
+          {
+            "node": "计算推荐",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "03b16b6a-0721-433c-9102-3c3e26a25316",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "05ac2e44f854bb011b13eeea1560430c3dcea8c972692ef9e0ee9b9856a82398"
+  },
+  "id": "LQS8lS6tfb2bq17d",
+  "tags": []
+}

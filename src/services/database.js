@@ -4,7 +4,7 @@ import n8nAPI from './n8n-api.js'
 export const userService = {
   // 获取用户资料
   async getProfile(userId) {
-    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook/user-profile/${userId}`)
+    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook-test/user-profile/${userId}`)
     const result = await response.json()
     
     if (!result.success) throw new Error(result.message)
@@ -13,7 +13,7 @@ export const userService = {
 
   // 更新用户资料
   async updateProfile(userId, updates) {
-    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook/user-profile/${userId}`, {
+    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook-test/user-profile/${userId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(updates)
@@ -48,7 +48,7 @@ export const courseService = {
   // 获取课程进度
   async getCourseProgress(userId, courseId) {
     try {
-      const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook/course-progress?userId=${userId}&courseId=${courseId}`)
+      const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook-test/course-progress?userId=${userId}&courseId=${courseId}`)
       const result = await response.json()
       
       if (!result.success) {
@@ -66,7 +66,7 @@ export const courseService = {
 export const okrService = {
   // 获取用户OKR
   async getUserOKRs(userId) {
-    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook/user-okrs/${userId}`)
+    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook-test/user-okrs/${userId}`)
     const result = await response.json()
     
     if (!result.success) throw new Error(result.message)
@@ -75,7 +75,7 @@ export const okrService = {
 
   // 创建OKR
   async createOKR(okrData) {
-    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook/okrs`, {
+    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook-test/okrs`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(okrData)
@@ -88,7 +88,7 @@ export const okrService = {
 
   // 更新OKR进度
   async updateOKRProgress(okrId, progress) {
-    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook/okr-progress/${okrId}`, {
+    const response = await fetch(`${import.meta.env.VITE_N8N_BASE_URL}/webhook-test/okr-progress/${okrId}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(progress)

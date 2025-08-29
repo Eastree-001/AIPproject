@@ -16,7 +16,7 @@
               <p class="page-subtitle">探索丰富的学习资源，开启您的智慧学习之旅</p>
             </div>
             <div class="header-actions">
-              <el-button type="primary" size="large" @click="showCourseModal = true">
+              <el-button type="primary" size="large" @click="showCreateModal = true">
                 <el-icon><Plus /></el-icon>
                 创建课程
               </el-button>
@@ -67,7 +67,7 @@
         <!-- 课程统计信息 -->
         <div class="stats-section">
           <div class="stats-grid">
-            <div class="stat-card">
+            <div class="stat-card" v-loading="isLoadingStats">
               <div class="stat-icon">
                 <el-icon size="32"><Reading /></el-icon>
               </div>
@@ -77,7 +77,7 @@
               </div>
             </div>
             
-            <div class="stat-card">
+            <div class="stat-card" v-loading="isLoadingStats">
               <div class="stat-icon">
                 <el-icon size="32"><Clock /></el-icon>
               </div>
@@ -87,7 +87,7 @@
               </div>
             </div>
             
-            <div class="stat-card">
+            <div class="stat-card" v-loading="isLoadingStats">
               <div class="stat-icon">
                 <el-icon size="32"><TrendCharts /></el-icon>
               </div>
@@ -97,7 +97,7 @@
               </div>
             </div>
             
-            <div class="stat-card">
+            <div class="stat-card" v-loading="isLoadingStats">
               <div class="stat-icon">
                 <el-icon size="32"><Star /></el-icon>
               </div>
@@ -109,10 +109,87 @@
           </div>
         </div>
 
+        <!-- 推荐课程区域 -->
+        <div class="recommendations-section" v-loading="isLoadingRecommendations">
+          <div class="section-header">
+            <h2 class="section-title">
+              <el-icon><Star /></el-icon>
+              为您推荐
+            </h2>
+            <div class="user-preferences" v-if="userPreferences.preferredCategories.length > 0">
+              <span class="preferences-label">基于您的偏好：</span>
+              <el-tag 
+                v-for="category in userPreferences.preferredCategories" 
+                :key="category"
+                size="small"
+                type="info"
+                class="preference-tag"
+              >
+                {{ category }}
+              </el-tag>
+            </div>
+          </div>
+
+          <div class="recommendations-grid" v-if="recommendedCourses.length > 0">
+            <div 
+              v-for="course in recommendedCourses" 
+              :key="course.id" 
+              class="recommendation-card"
+              @click="viewCourse(course)"
+            >
+              <div class="course-image">
+                <img :src="course.thumbnail || `https://picsum.photos/400/250?random=${course.id}`" :alt="course.title" />
+                <div class="course-overlay">
+                  <el-button type="primary" size="small" @click.stop="startLearning(course)">
+                    开始学习
+                  </el-button>
+                </div>
+                <div class="recommend-score">
+                  <el-icon><TrendCharts /></el-icon>
+                  {{ course.recommendScore }}分
+                </div>
+              </div>
+              
+              <div class="course-content">
+                <div class="course-category">{{ course.category }}</div>
+                <h3 class="course-title">{{ course.title }}</h3>
+                <p class="course-description">{{ course.description }}</p>
+                <div class="recommend-reason">
+                  <el-icon><Star /></el-icon>
+                  {{ course.recommendReason }}
+                </div>
+                
+                <div class="course-meta">
+                  <div class="meta-item">
+                    <el-icon><Clock /></el-icon>
+                    <span>{{ course.duration }}小时</span>
+                  </div>
+                  <div class="meta-item">
+                    <el-icon><User /></el-icon>
+                    <span>{{ course.instructor }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <el-icon><Star /></el-icon>
+                    <span>{{ course.avgRating || '新课程' }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div v-else-if="!isLoadingRecommendations" class="no-recommendations">
+            <el-empty description="暂无推荐课程">
+              <el-button type="primary" @click="loadRecommendedCourses">
+                重新获取推荐
+              </el-button>
+            </el-empty>
+          </div>
+        </div>
+
         <!-- 课程列表 -->
         <div class="courses-section">
           <div class="section-header">
-            <h2 class="section-title">推荐课程</h2>
+            <h2 class="section-title">全部课程</h2>
             <div class="view-options">
               <el-button-group>
                 <el-button 
@@ -316,6 +393,12 @@
         </div>
       </div>
     </el-dialog>
+
+    <!-- 创建课程模态框 -->
+    <CreateCourseModal 
+      v-model="showCreateModal" 
+      @success="handleCreateSuccess"
+    />
   </div>
 </template>
 
@@ -325,6 +408,8 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import Header from '@/components/Header.vue'
+import CreateCourseModal from '@/components/CreateCourseModal.vue'
+import { courseAPI } from '@/services/n8n-api'
 import { 
   Reading, 
   Plus, 
@@ -350,6 +435,17 @@ const currentPage = ref(1)
 const pageSize = ref(12)
 const showCourseModal = ref(false)
 const selectedCourse = ref(null)
+const showCreateModal = ref(false)
+const isLoadingStats = ref(false)
+const isLoadingRecommendations = ref(false)
+
+// 推荐课程数据
+const recommendedCourses = ref([])
+const userPreferences = ref({
+  preferredCategories: [],
+  completedCoursesCount: 0,
+  totalProgressCount: 0
+})
 
 // 课程分类
 const categories = ref([
@@ -462,11 +558,107 @@ const courses = ref([
 
 // 课程统计
 const courseStats = reactive({
-  totalCourses: 156,
-  totalHours: 2840,
-  completedCourses: 8,
-  avgRating: 4.7
+  totalCourses: 0,
+  totalHours: 0,
+  completedCourses: 0,
+  avgRating: 0
 })
+
+// 加载课程统计数据
+const loadCourseStats = async () => {
+  isLoadingStats.value = true
+  try {
+    // 获取当前用户ID，如果没有登录则使用默认值
+    const userId = authStore.user?.id || 'f75fc652-1688-412b-af72-d0caf948b76f'
+    console.log('正在获取课程统计数据，用户ID:', userId)
+    
+    const response = await courseAPI.getCourseStats(userId)
+    console.log('课程统计API响应:', response)
+    
+    // 根据n8n工作流返回的数据结构进行解析
+    if (response) {
+      // 如果返回的是直接的统计对象
+      if (response.globalStats) {
+        const globalStats = response.globalStats
+        courseStats.totalCourses = globalStats.totalCourses || 0
+        courseStats.totalHours = globalStats.totalHours || 0
+        courseStats.completedCourses = globalStats.completedCourses || 0
+        courseStats.avgRating = globalStats.avgRating ? Number(globalStats.avgRating).toFixed(1) : '0.0'
+      } 
+      // 如果返回的是包装在data字段中
+      else if (response.data && response.data.globalStats) {
+        const globalStats = response.data.globalStats
+        courseStats.totalCourses = globalStats.totalCourses || 0
+        courseStats.totalHours = globalStats.totalHours || 0
+        courseStats.completedCourses = globalStats.completedCourses || 0
+        courseStats.avgRating = globalStats.avgRating ? Number(globalStats.avgRating).toFixed(1) : '0.0'
+      }
+      // 如果是直接的数值对象
+      else if (typeof response === 'object') {
+        courseStats.totalCourses = response.totalCourses || 0
+        courseStats.totalHours = response.totalHours || 0
+        courseStats.completedCourses = response.completedCourses || 0
+        courseStats.avgRating = response.avgRating ? Number(response.avgRating).toFixed(1) : '0.0'
+      }
+      
+      console.log('课程统计数据更新成功:', courseStats)
+      ElMessage.success('课程统计数据加载成功')
+    } else {
+      console.warn('课程统计API返回空数据:', response)
+      ElMessage.warning('课程统计数据为空，显示默认数据')
+    }
+  } catch (error) {
+    console.error('获取课程统计失败:', error)
+    ElMessage.error(`获取课程统计数据失败: ${error.message || '请检查网络连接和n8n工作流状态'}`)
+    // 保持默认值
+  } finally {
+    isLoadingStats.value = false
+  }
+}
+
+// 加载推荐课程数据
+const loadRecommendedCourses = async () => {
+  isLoadingRecommendations.value = true
+  try {
+    // 获取当前用户ID，如果没有登录则使用默认值
+    const userId = authStore.user?.id || 'f75fc652-1688-412b-af72-d0caf948b76f'
+    console.log('正在获取推荐课程，用户ID:', userId)
+    
+    const response = await courseAPI.getRecommendedCourses(userId, {
+      limit: 6,
+      category: selectedCategory.value || ''
+    })
+    console.log('推荐课程API响应:', response)
+    
+    // 根据n8n工作流返回的数据结构进行解析
+    if (response && response.success && response.data) {
+      const data = response.data
+      recommendedCourses.value = data.courses || []
+      
+      // 更新用户偏好信息
+      if (data.userPreferences) {
+        userPreferences.value = {
+          preferredCategories: data.userPreferences.preferredCategories || [],
+          completedCoursesCount: data.userPreferences.completedCoursesCount || 0,
+          totalProgressCount: data.userPreferences.totalProgressCount || 0
+        }
+      }
+      
+      console.log('推荐课程数据更新成功:', recommendedCourses.value.length, '门课程')
+      ElMessage.success(`为您推荐了 ${recommendedCourses.value.length} 门课程`)
+    } else {
+      console.warn('推荐课程API返回格式异常:', response)
+      ElMessage.warning('推荐课程数据异常，显示默认推荐')
+      recommendedCourses.value = []
+    }
+  } catch (error) {
+    console.error('获取推荐课程失败:', error)
+    ElMessage.error(`获取推荐课程失败: ${error.message || '请检查网络连接和n8n工作流状态'}`)
+    recommendedCourses.value = []
+  } finally {
+    isLoadingRecommendations.value = false
+  }
+}
 
 // 计算属性
 const filteredCourses = computed(() => {
@@ -509,6 +701,8 @@ const handleSearch = () => {
 
 const handleCategoryChange = () => {
   currentPage.value = 1
+  // 重新加载推荐课程（基于新的分类筛选）
+  loadRecommendedCourses()
 }
 
 const handleLevelChange = () => {
@@ -554,9 +748,24 @@ const getStatusText = (status) => {
   return statusMap[status] || '未知'
 }
 
+const handleCreateSuccess = () => {
+  // 刷新课程列表
+  ElMessage.success('课程创建成功！')
+  // 重新加载课程统计数据和推荐课程
+  Promise.all([
+    loadCourseStats(),
+    loadRecommendedCourses()
+  ])
+}
+
 // 组件挂载时
-onMounted(() => {
+onMounted(async () => {
   console.log('课程页面已加载')
+  // 并行加载课程统计数据和推荐课程
+  await Promise.all([
+    loadCourseStats(),
+    loadRecommendedCourses()
+  ])
 })
 </script>
 
@@ -1174,6 +1383,212 @@ onMounted(() => {
   
   .filter-options .el-select {
     min-width: auto;
+  }
+}
+
+/* 推荐课程区域样式 */
+.recommendations-section {
+  background: white;
+  border-radius: 20px;
+  padding: 40px;
+  margin-bottom: 30px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+}
+
+.recommendations-section .section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  flex-wrap: wrap;
+  gap: 20px;
+}
+
+.recommendations-section .section-title {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 2rem;
+  font-weight: 700;
+  color: #333;
+}
+
+.user-preferences {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.preferences-label {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.preference-tag {
+  margin-right: 8px;
+}
+
+.recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 25px;
+}
+
+.recommendation-card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.06);
+  transition: all 0.3s ease;
+  cursor: pointer;
+  border: 2px solid transparent;
+  position: relative;
+}
+
+.recommendation-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
+  border-color: #667eea;
+}
+
+.recommendation-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+.recommendation-card .course-image {
+  position: relative;
+  height: 180px;
+  overflow: hidden;
+}
+
+.recommendation-card .course-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.3s ease;
+}
+
+.recommendation-card:hover .course-image img {
+  transform: scale(1.05);
+}
+
+.recommend-score {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  background: rgba(102, 126, 234, 0.9);
+  color: white;
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.recommendation-card .course-content {
+  padding: 20px;
+}
+
+.recommendation-card .course-category {
+  display: inline-block;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-bottom: 12px;
+}
+
+.recommendation-card .course-title {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+  line-height: 1.4;
+}
+
+.recommendation-card .course-description {
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 15px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-size: 0.9rem;
+}
+
+.recommend-reason {
+  background: #f0f9ff;
+  color: #0369a1;
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 0.8rem;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 500;
+}
+
+.recommendation-card .course-meta {
+  display: flex;
+  gap: 15px;
+  font-size: 0.85rem;
+}
+
+.recommendation-card .meta-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #666;
+}
+
+.no-recommendations {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+/* 响应式设计 - 推荐课程 */
+@media (max-width: 1024px) {
+  .recommendations-grid {
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+  
+  .recommendations-section .section-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+@media (max-width: 768px) {
+  .recommendations-section {
+    padding: 25px;
+    margin-bottom: 20px;
+  }
+  
+  .recommendations-section .section-title {
+    font-size: 1.6rem;
+  }
+  
+  .recommendations-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+  
+  .user-preferences {
+    flex-direction: column;
+    align-items: flex-start;
   }
 }
 </style>

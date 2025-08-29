@@ -208,3 +208,39 @@ CREATE POLICY "Anyone can view posts" ON community_posts FOR SELECT USING (true)
 CREATE POLICY "Users can create posts" ON community_posts FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Users can update own posts" ON community_posts FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can delete own posts" ON community_posts FOR DELETE USING (auth.uid() = user_id);
+
+
+-- =========================================
+-- Views & Indexes for Analytics Performance
+-- =========================================
+
+-- View: user_progress_with_course (join user_progress with courses metadata)
+CREATE OR REPLACE VIEW user_progress_with_course AS
+SELECT
+  up.id,
+  up.user_id,
+  up.course_id,
+  up.lesson_id,
+  up.progress,
+  up.time_spent,
+  up.completed_at,
+  up.created_at,
+  up.updated_at,
+  c.title      AS course_title,
+  c.category   AS course_category,
+  c.difficulty AS course_difficulty
+FROM user_progress up
+LEFT JOIN courses c ON c.id = up.course_id;
+
+-- Optional (PostgreSQL 15+): ensure view runs with invoker rights so RLS applies as caller
+-- ALTER VIEW user_progress_with_course SET (security_invoker = on);
+
+-- Indexes to speed up Analytics queries
+-- Composite index for user + date range scans on learning_stats
+CREATE INDEX IF NOT EXISTS idx_learning_stats_user_date ON learning_stats(user_id, date);
+
+-- Composite index for OKR lookups by user and status
+CREATE INDEX IF NOT EXISTS idx_okrs_user_status ON okrs(user_id, status);
+
+-- Optional: composite index for user_progress combined lookups (if needed in future)
+-- CREATE INDEX IF NOT EXISTS idx_user_progress_user_course ON user_progress(user_id, course_id);

@@ -1,0 +1,573 @@
+{
+  "name": "创建课程工作流",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/courses/create",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "create-course-webhook",
+      "name": "创建课程触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [280, 300],
+      "webhookId": "create-course"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "title",
+              "name": "title",
+              "value": "={{ $('创建课程触发器').item.json.body.title }}",
+              "type": "string"
+            },
+            {
+              "id": "description",
+              "name": "description", 
+              "value": "={{ $('创建课程触发器').item.json.body.description }}",
+              "type": "string"
+            },
+            {
+              "id": "category",
+              "name": "category",
+              "value": "={{ $('创建课程触发器').item.json.body.category }}",
+              "type": "string"
+            },
+            {
+              "id": "level",
+              "name": "level",
+              "value": "={{ $('创建课程触发器').item.json.body.level || 'beginner' }}",
+              "type": "string"
+            },
+            {
+              "id": "duration",
+              "name": "duration",
+              "value": "={{ parseInt($('创建课程触发器').item.json.body.duration) || 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "instructor",
+              "name": "instructor",
+              "value": "={{ $('创建课程触发器').item.json.body.instructor }}",
+              "type": "string"
+            },
+            {
+              "id": "cover_image",
+              "name": "coverImage",
+              "value": "={{ $('创建课程触发器').item.json.body.coverImage || 'https://picsum.photos/400/250?random=' + Math.floor(Math.random() * 1000) }}",
+              "type": "string"
+            },
+            {
+              "id": "chapters",
+              "name": "chapters",
+              "value": "={{ $('创建课程触发器').item.json.body.chapters || [] }}",
+              "type": "object"
+            },
+            {
+              "id": "creator_id",
+              "name": "creatorId",
+              "value": "={{ $('创建课程触发器').item.json.body.creatorId }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-course-data",
+      "name": "提取课程数据",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [500, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "title-required",
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "category-required",
+              "leftValue": "={{ $json.category }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            },
+            {
+              "id": "instructor-required",
+              "leftValue": "={{ $json.instructor }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-course-data",
+      "name": "验证课程数据",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 300]
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "courses",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.description }}"
+            },
+            {
+              "fieldId": "category",
+              "fieldValue": "={{ $json.category }}"
+            },
+            {
+              "fieldId": "level",
+              "fieldValue": "={{ $json.level }}"
+            },
+            {
+              "fieldId": "duration",
+              "fieldValue": "={{ $json.duration }}"
+            },
+            {
+              "fieldId": "instructor",
+              "fieldValue": "={{ $json.instructor }}"
+            },
+            {
+              "fieldId": "cover_image",
+              "fieldValue": "={{ $json.coverImage }}"
+            },
+            {
+              "fieldId": "chapters",
+              "fieldValue": "={{ JSON.stringify($json.chapters) }}"
+            },
+            {
+              "fieldId": "creator_id",
+              "fieldValue": "={{ $json.creatorId }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "active"
+            },
+            {
+              "fieldId": "rating",
+              "fieldValue": "0"
+            },
+            {
+              "fieldId": "students_count",
+              "fieldValue": "0"
+            }
+          ]
+        }
+      },
+      "id": "create-course-record",
+      "name": "创建课程记录",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const courseData = $input.first().json;\nconst inputData = $('提取课程数据').first().json;\n\n// 处理章节数据，为每个章节和课时创建记录\nconst chapters = inputData.chapters || [];\nconst courseId = courseData.id;\n\nlet chapterRecords = [];\nlet lessonRecords = [];\n\nchapters.forEach((chapter, chapterIndex) => {\n  const chapterId = `${courseId}_chapter_${chapterIndex + 1}`;\n  \n  // 创建章节记录\n  chapterRecords.push({\n    id: chapterId,\n    course_id: courseId,\n    title: chapter.title,\n    description: chapter.description || '',\n    order_index: chapterIndex + 1,\n    duration: chapter.duration || 0\n  });\n  \n  // 创建课时记录\n  if (chapter.lessons && Array.isArray(chapter.lessons)) {\n    chapter.lessons.forEach((lesson, lessonIndex) => {\n      lessonRecords.push({\n        id: `${chapterId}_lesson_${lessonIndex + 1}`,\n        course_id: courseId,\n        chapter_id: chapterId,\n        title: lesson.title,\n        description: lesson.description || '',\n        duration: lesson.duration || 0,\n        order_index: lessonIndex + 1,\n        content_type: lesson.type || 'video',\n        content_url: lesson.url || ''\n      });\n    });\n  }\n});\n\nreturn {\n  courseId: courseId,\n  courseData: courseData,\n  chapterRecords: chapterRecords,\n  lessonRecords: lessonRecords,\n  totalChapters: chapterRecords.length,\n  totalLessons: lessonRecords.length\n};"
+      },
+      "id": "process-course-structure",
+      "name": "处理课程结构",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 300]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-chapters",
+              "leftValue": "={{ $json.totalChapters }}",
+              "rightValue": "0",
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-has-chapters",
+      "name": "检查是否有章节",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [1380, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $input.first().json;\nreturn data.chapterRecords;"
+      },
+      "id": "prepare-chapters",
+      "name": "准备章节数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 200]
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "course_chapters",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "course_id",
+              "fieldValue": "={{ $json.course_id }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.description }}"
+            },
+            {
+              "fieldId": "order_index",
+              "fieldValue": "={{ $json.order_index }}"
+            },
+            {
+              "fieldId": "duration",
+              "fieldValue": "={{ $json.duration }}"
+            }
+          ]
+        }
+      },
+      "id": "create-chapters",
+      "name": "创建章节记录",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1820, 200],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const data = $('处理课程结构').first().json;\nreturn data.lessonRecords;"
+      },
+      "id": "prepare-lessons",
+      "name": "准备课时数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1600, 400]
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "course_lessons",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "course_id",
+              "fieldValue": "={{ $json.course_id }}"
+            },
+            {
+              "fieldId": "chapter_id",
+              "fieldValue": "={{ $json.chapter_id }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $json.description }}"
+            },
+            {
+              "fieldId": "duration",
+              "fieldValue": "={{ $json.duration }}"
+            },
+            {
+              "fieldId": "order_index",
+              "fieldValue": "={{ $json.order_index }}"
+            },
+            {
+              "fieldId": "content_type",
+              "fieldValue": "={{ $json.content_type }}"
+            },
+            {
+              "fieldId": "content_url",
+              "fieldValue": "={{ $json.content_url }}"
+            }
+          ]
+        }
+      },
+      "id": "create-lessons",
+      "name": "创建课时记录",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1820, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "message": "课程创建成功",
+          "data": {
+            "courseId": "={{ $('处理课程结构').item.json.courseId }}",
+            "title": "={{ $('处理课程结构').item.json.courseData.title }}",
+            "totalChapters": "={{ $('处理课程结构').item.json.totalChapters }}",
+            "totalLessons": "={{ $('处理课程结构').item.json.totalLessons }}",
+            "course": "={{ $('处理课程结构').item.json.courseData }}"
+          },
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [2040, 300]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "message": "课程创建成功（无章节内容）",
+          "data": {
+            "courseId": "={{ $json.courseId }}",
+            "course": "={{ $json.courseData }}"
+          },
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "options": {}
+      },
+      "id": "simple-success-response",
+      "name": "简单成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1600, 500]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "课程数据验证失败",
+          "message": "请确保提供课程标题、分类和讲师信息",
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "responseCode": 400,
+        "options": {}
+      },
+      "id": "validation-error-response",
+      "name": "验证错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [940, 500]
+    }
+  ],
+  "connections": {
+    "创建课程触发器": {
+      "main": [
+        [
+          {
+            "node": "提取课程数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取课程数据": {
+      "main": [
+        [
+          {
+            "node": "验证课程数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证课程数据": {
+      "main": [
+        [
+          {
+            "node": "创建课程记录",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "验证错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "创建课程记录": {
+      "main": [
+        [
+          {
+            "node": "处理课程结构",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理课程结构": {
+      "main": [
+        [
+          {
+            "node": "检查是否有章节",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查是否有章节": {
+      "main": [
+        [
+          {
+            "node": "准备章节数据",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "准备课时数据",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "简单成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "准备章节数据": {
+      "main": [
+        [
+          {
+            "node": "创建章节记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "准备课时数据": {
+      "main": [
+        [
+          {
+            "node": "创建课时记录",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "创建章节记录": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "创建课时记录": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "continueOnFail": true,
+    "ignoreTypeErrors": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all"
+  },
+  "versionId": "create-course-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "CreateCourseWorkflow",
+  "tags": ["courses", "create", "education", "supabase"]
+}

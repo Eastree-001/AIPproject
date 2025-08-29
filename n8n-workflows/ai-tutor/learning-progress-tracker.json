@@ -114,61 +114,52 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/user_progress",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "user_progress",
+        "fieldsUi": {
+          "fieldValues": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.userId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "fieldId": "course_id", 
+              "fieldValue": "={{ $json.courseId }}"
             },
             {
-              "name": "Prefer",
-              "value": "return=representation"
+              "fieldId": "lesson_id",
+              "fieldValue": "={{ $json.lessonId }}"
+            },
+            {
+              "fieldId": "progress",
+              "fieldValue": "={{ $json.progress }}"
+            },
+            {
+              "fieldId": "time_spent",
+              "fieldValue": "={{ $json.timeSpent }}"
+            },
+            {
+              "fieldId": "completed_at",
+              "fieldValue": "={{ $json.progress >= 100 ? new Date().toISOString() : null }}"
             }
           ]
         },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "user_id",
-              "value": "={{ $json.userId }}"
-            },
-            {
-              "name": "course_id",
-              "value": "={{ $json.courseId }}"
-            },
-            {
-              "name": "lesson_id",
-              "value": "={{ $json.lessonId }}"
-            },
-            {
-              "name": "progress",
-              "value": "={{ $json.progress }}"
-            },
-            {
-              "name": "time_spent",
-              "value": "={{ $json.timeSpent }}"
-            },
-            {
-              "name": "completed_at",
-              "value": "={{ $json.progress >= 100 ? new Date().toISOString() : null }}"
-            }
-          ]
-        },
-        "options": {}
+        "options": {
+          "upsert": true
+        }
       },
       "id": "upsert-progress",
       "name": "更新学习进度",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [940, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
@@ -201,28 +192,38 @@
     },
     {
       "parameters": {
-        "method": "GET",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/user_progress?user_id=eq.{{ $('提取进度数据').item.json.userId }}&course_id=eq.{{ $('提取进度数据').item.json.courseId }}&select=*",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "user_progress",
+        "filterType": "manual",
+        "matchType": "allFilters",
+        "filters": {
+          "conditions": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "keyName": "user_id",
+              "condition": "equals",
+              "keyValue": "={{ $('提取进度数据').item.json.userId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "keyName": "course_id", 
+              "condition": "equals",
+              "keyValue": "={{ $('提取进度数据').item.json.courseId }}"
             }
           ]
         },
-        "options": {}
+        "returnAll": true
       },
       "id": "get-course-progress",
       "name": "获取课程总进度",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1380, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1380, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
@@ -236,57 +237,48 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "{{ $env.SUPABASE_URL }}/rest/v1/learning_stats",
-        "sendHeaders": true,
-        "headerParameters": {
-          "parameters": [
+        "resource": "rows",
+        "operation": "create",
+        "tableId": "learning_stats",
+        "fieldsUi": {
+          "fieldValues": [
             {
-              "name": "Authorization",
-              "value": "Bearer {{ $env.SUPABASE_ANON_KEY }}"
+              "fieldId": "user_id",
+              "fieldValue": "={{ $json.userId }}"
             },
             {
-              "name": "Content-Type",
-              "value": "application/json"
+              "fieldId": "date",
+              "fieldValue": "={{ new Date().toISOString().split('T')[0] }}"
             },
             {
-              "name": "Prefer",
-              "value": "return=representation"
+              "fieldId": "total_time",
+              "fieldValue": "={{ $json.timeSpent }}"
+            },
+            {
+              "fieldId": "lessons_completed",
+              "fieldValue": "={{ $json.lessonsCompletedToday }}"
+            },
+            {
+              "fieldId": "courses_completed",
+              "fieldValue": "={{ $json.isCourseCompleted ? 1 : 0 }}"
             }
           ]
         },
-        "sendBody": true,
-        "bodyParameters": {
-          "parameters": [
-            {
-              "name": "user_id",
-              "value": "={{ $json.userId }}"
-            },
-            {
-              "name": "date",
-              "value": "={{ new Date().toISOString().split('T')[0] }}"
-            },
-            {
-              "name": "total_time",
-              "value": "={{ $json.timeSpent }}"
-            },
-            {
-              "name": "lessons_completed",
-              "value": "={{ $json.lessonsCompletedToday }}"
-            },
-            {
-              "name": "courses_completed",
-              "value": "={{ $json.isCourseCompleted ? 1 : 0 }}"
-            }
-          ]
-        },
-        "options": {}
+        "options": {
+          "upsert": true
+        }
       },
       "id": "update-daily-stats",
       "name": "更新每日统计",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [1820, 300]
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [1820, 300],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "supabase-credentials"
+        }
+      }
     },
     {
       "parameters": {
