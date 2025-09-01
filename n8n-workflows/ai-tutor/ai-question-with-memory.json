@@ -1,0 +1,541 @@
+{
+  "name": "智能问答-带记忆功能",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/ai/question",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "787f6d73-5b70-45bb-810d-5bf5e95bbb27",
+      "name": "AI问答触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        304,
+        256
+      ],
+      "webhookId": "ai-question"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "question",
+              "name": "question",
+              "value": "={{ $('AI问答触发器').item.json.body.question }}",
+              "type": "string"
+            },
+            {
+              "id": "userId",
+              "name": "userId",
+              "value": "={{ $('AI问答触发器').item.json.body.userId || 'user-' + Date.now() }}",
+              "type": "string"
+            },
+            {
+              "id": "context",
+              "name": "context",
+              "value": "={{ $('AI问答触发器').item.json.body.context || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "sessionId",
+              "name": "sessionId",
+              "value": "={{ $('AI问答触发器').item.json.body.sessionId || 'session-' + Date.now() }}",
+              "type": "string"
+            },
+            {
+              "id": "useMemory",
+              "name": "useMemory",
+              "value": "={{ $('AI问答触发器').item.json.body.useMemory !== false }}",
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "a8404ea7-9f45-4460-b4ec-25f38501a543",
+      "name": "解析输入",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "question-exists",
+              "leftValue": "={{ $json.question }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "1aa65dd0-20ba-47e5-b87a-26b4e8ac1802",
+      "name": "验证输入",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        704,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "use-memory",
+              "leftValue": "={{ $json.useMemory }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "memory-check-node",
+      "name": "检查是否使用记忆",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        896,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "value": "public"
+        },
+        "table": {
+          "value": "conversation_history"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "user_id",
+              "condition": "equal",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "column": "session_id",
+              "condition": "equal",
+              "value": "={{ $json.sessionId }}"
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "created_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "limit": 10,
+        "options": {}
+      },
+      "id": "get-conversation-history",
+      "name": "获取对话历史",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        176
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $('解析输入').first().json;\nconst useMemory = $('检查是否使用记忆').first().json.useMemory;\n\nconsole.log('构建AI请求 - 输入数据:', JSON.stringify(inputData));\nconsole.log('是否使用记忆:', useMemory);\n\n// 确保userId符合Dify要求格式\nlet userId = inputData.userId;\nif (!userId || userId.trim() === '' || userId === 'undefined' || userId === 'null') {\n  userId = 'user-' + Date.now();\n}\n\n// 确保question不为空\nlet question = inputData.question;\nif (!question || question.trim() === '') {\n  throw new Error('问题内容不能为空');\n}\n\n// 构建上下文\nlet contextText = inputData.context || '';\n\n// 如果使用记忆功能，添加历史对话\nif (useMemory) {\n  try {\n    const historyNode = $('获取对话历史');\n    if (historyNode && historyNode.all && historyNode.all().length > 0) {\n      const historyData = historyNode.all();\n      let conversationHistory = [];\n      \n      // 处理历史对话数据\n      historyData.forEach(item => {\n        if (item && item.json) {\n          if (Array.isArray(item.json)) {\n            conversationHistory = conversationHistory.concat(item.json);\n          } else {\n            conversationHistory.push(item.json);\n          }\n        }\n      });\n      \n      // 按时间排序（最新的在前）\n      conversationHistory.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));\n      \n      // 构建对话历史文本\n      if (conversationHistory.length > 0) {\n        const historyText = conversationHistory.slice(0, 5).map(conv => {\n          return `用户: ${conv.question}\\nAI: ${conv.answer}`;\n        }).join('\\n\\n');\n        \n        contextText = `以下是我们之前的对话历史，请参考这些信息来回答当前问题：\\n\\n${historyText}\\n\\n当前问题: ${question}`;\n        console.log('添加了对话历史，历史记录数量:', conversationHistory.length);\n      }\n    }\n  } catch (error) {\n    console.log('获取对话历史失败，继续使用原始问题:', error.message);\n  }\n}\n\nconst result = {\n  userId: userId,\n  question: question.trim(),\n  originalQuestion: question.trim(),\n  context: contextText,\n  sessionId: inputData.sessionId,\n  useMemory: useMemory,\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('构建AI请求 - 输出数据:', JSON.stringify(result));\nreturn result;"
+      },
+      "id": "24bcb371-38d0-4aaf-b5a1-8795b9a159f3",
+      "name": "构建AI请求",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $('解析输入').first().json;\n\nconsole.log('直接构建AI请求 - 输入数据:', JSON.stringify(inputData));\n\n// 确保userId符合Dify要求格式\nlet userId = inputData.userId;\nif (!userId || userId.trim() === '' || userId === 'undefined' || userId === 'null') {\n  userId = 'user-' + Date.now();\n}\n\n// 确保question不为空\nlet question = inputData.question;\nif (!question || question.trim() === '') {\n  throw new Error('问题内容不能为空');\n}\n\nconst result = {\n  userId: userId,\n  question: question.trim(),\n  originalQuestion: question.trim(),\n  context: inputData.context || '',\n  sessionId: inputData.sessionId,\n  useMemory: false,\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('直接构建AI请求 - 输出数据:', JSON.stringify(result));\nreturn result;"
+      },
+      "id": "direct-ai-request",
+      "name": "直接构建AI请求",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        336
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.dify.ai/v1/chat-messages",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer app-4lsTc1J3JsbwoHXdAxGONNkH"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "user",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "name": "query",
+              "value": "={{ $json.context || $json.question }}"
+            },
+            {
+              "name": "inputs"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "99fc4c84-e6a0-4c02-a897-40070d3ed045",
+      "name": "调用Dify AI",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1472,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.first().json;\nconst requestData = $input.first().json;\n\n// 尝试从不同的节点获取请求数据\nlet originalRequestData;\ntry {\n  originalRequestData = $('构建AI请求').first().json;\n} catch (e) {\n  try {\n    originalRequestData = $('直接构建AI请求').first().json;\n  } catch (e2) {\n    originalRequestData = $('解析输入').first().json;\n  }\n}\n\nlet aiAnswer = '';\nlet success = false;\n\nconsole.log('Dify API响应:', JSON.stringify(response));\nconsole.log('原始请求数据:', JSON.stringify(originalRequestData));\n\n// 解析Dify聊天助手API响应格式\nif (response) {\n  if (response.answer && typeof response.answer === 'string') {\n    aiAnswer = response.answer;\n    success = true;\n  }\n  else if (response.code && response.code !== 200) {\n    console.log('Dify API错误:', response.message || response.error);\n    aiAnswer = 'AI服务暂时不可用，请稍后再试。';\n    success = false;\n  }\n  else if (response.data && response.data.answer) {\n    aiAnswer = response.data.answer;\n    success = true;\n  }\n}\n\n// 如果AI调用失败，提供友好的错误回复\nif (!success || !aiAnswer.trim()) {\n  aiAnswer = '抱歉，我现在遇到了一些技术问题，无法正常回答您的问题。请稍后再试。';\n  success = false;\n  console.log('Dify响应解析失败，原始响应:', JSON.stringify(response));\n}\n\nreturn {\n  userId: originalRequestData.userId,\n  sessionId: originalRequestData.sessionId,\n  question: originalRequestData.originalQuestion || originalRequestData.question,\n  answer: aiAnswer.trim(),\n  success: success,\n  useMemory: originalRequestData.useMemory || false,\n  timestamp: new Date().toISOString()\n};"
+      },
+      "id": "97f1d07a-fbba-4409-b044-21a08846455e",
+      "name": "处理响应",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1664,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "success-and-memory",
+              "leftValue": "={{ $json.success }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            },
+            {
+              "id": "use-memory-check",
+              "leftValue": "={{ $json.useMemory }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equal"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "save-memory-check",
+      "name": "检查是否保存记忆",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1856,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "insert",
+        "schema": {
+          "value": "public"
+        },
+        "table": {
+          "value": "conversation_history"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "user_id": "={{ $json.userId }}",
+            "session_id": "={{ $json.sessionId }}",
+            "question": "={{ $json.question }}",
+            "answer": "={{ $json.answer }}",
+            "created_at": "={{ $json.timestamp }}"
+          }
+        },
+        "options": {}
+      },
+      "id": "save-conversation",
+      "name": "保存对话记录",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2048,
+        176
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": "={{ $json.success }}",
+          "question": "={{ $json.question }}",
+          "answer": "={{ $json.answer }}",
+          "sessionId": "={{ $json.sessionId }}",
+          "useMemory": "={{ $json.useMemory }}",
+          "timestamp": "={{ $json.timestamp }}"
+        },
+        "options": {}
+      },
+      "id": "294609f4-a3c8-461f-96fc-401f7b0a2615",
+      "name": "成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        2240,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "问题内容不能为空",
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "be221e3b-81b2-402f-ae97-87ad41ad3c9e",
+      "name": "错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        912,
+        368
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "AI问答触发器": {
+      "main": [
+        [
+          {
+            "node": "解析输入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析输入": {
+      "main": [
+        [
+          {
+            "node": "验证输入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证输入": {
+      "main": [
+        [
+          {
+            "node": "检查是否使用记忆",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查是否使用记忆": {
+      "main": [
+        [
+          {
+            "node": "获取对话历史",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "直接构建AI请求",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取对话历史": {
+      "main": [
+        [
+          {
+            "node": "构建AI请求",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "构建AI请求": {
+      "main": [
+        [
+          {
+            "node": "调用Dify AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "直接构建AI请求": {
+      "main": [
+        [
+          {
+            "node": "调用Dify AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "调用Dify AI": {
+      "main": [
+        [
+          {
+            "node": "处理响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "处理响应": {
+      "main": [
+        [
+          {
+            "node": "检查是否保存记忆",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查是否保存记忆": {
+      "main": [
+        [
+          {
+            "node": "保存对话记录",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "保存对话记录": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "memory-version-1",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "05ac2e44f854bb011b13eeea1560430c3dcea8c972692ef9e0ee9b9856a82398"
+  },
+  "id": "N1ojvcfVVsZUqBcE-memory",
+  "tags": ["ai", "memory", "conversation"]
+}

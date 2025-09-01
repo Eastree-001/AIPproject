@@ -24,44 +24,41 @@
           </div>
         </div>
 
-        <!-- 搜索和筛选区域 -->
-        <div class="search-filter-section">
-          <div class="search-box">
-            <el-input
-              v-model="searchQuery"
-              placeholder="搜索课程、知识点、讲师..."
-              prefix-icon="Search"
-              size="large"
-              clearable
-              @input="handleSearch"
-            />
-          </div>
+        <!-- 搜索和筛选区域 - 横向排列 -->
+        <div class="search-filter-section horizontal-layout">
+          <el-input
+            v-model="searchQuery"
+            placeholder="搜索课程、知识点、讲师..."
+            prefix-icon="Search"
+            size="large"
+            clearable
+            @input="handleSearch"
+            class="search-input-horizontal"
+          />
           
-          <div class="filter-options">
-            <el-select v-model="selectedCategory" placeholder="选择分类" size="large" @change="handleCategoryChange">
-              <el-option label="全部分类" value="" />
-              <el-option
-                v-for="category in categories"
-                :key="category.id"
-                :label="category.name"
-                :value="category.id"
-              />
-            </el-select>
-            
-            <el-select v-model="selectedLevel" placeholder="选择难度" size="large" @change="handleLevelChange">
-              <el-option label="全部难度" value="" />
-              <el-option label="初级" value="beginner" />
-              <el-option label="中级" value="intermediate" />
-              <el-option label="高级" value="advanced" />
-            </el-select>
-            
-            <el-select v-model="selectedStatus" placeholder="学习状态" size="large" @change="handleStatusChange">
-              <el-option label="全部状态" value="" />
-              <el-option label="未开始" value="not_started" />
-              <el-option label="学习中" value="in_progress" />
-              <el-option label="已完成" value="completed" />
-            </el-select>
-          </div>
+          <el-select v-model="selectedCategory" placeholder="选择分类" size="large" @change="handleCategoryChange" class="filter-select-horizontal">
+            <el-option label="全部分类" value="" />
+            <el-option
+              v-for="category in categories"
+              :key="category.id"
+              :label="category.name"
+              :value="category.id"
+            />
+          </el-select>
+          
+          <el-select v-model="selectedLevel" placeholder="选择难度" size="large" @change="handleLevelChange" class="filter-select-horizontal">
+            <el-option label="全部难度" value="" />
+            <el-option label="初级" value="beginner" />
+            <el-option label="中级" value="intermediate" />
+            <el-option label="高级" value="advanced" />
+          </el-select>
+          
+          <el-select v-model="selectedStatus" placeholder="学习状态" size="large" @change="handleStatusChange" class="filter-select-horizontal">
+            <el-option label="全部状态" value="" />
+            <el-option label="未开始" value="not_started" />
+            <el-option label="学习中" value="in_progress" />
+            <el-option label="已完成" value="completed" />
+          </el-select>
         </div>
 
         <!-- 课程统计信息 -->
@@ -106,6 +103,179 @@
                 <div class="stat-label">平均评分</div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- 课程列表 -->
+        <div class="courses-section" v-loading="isLoadingCourses" element-loading-text="正在加载课程数据...">
+          <div class="section-header">
+            <h2 class="section-title">
+              全部课程
+              <span v-if="!isLoadingCourses && totalCourses > 0" class="course-count">
+                ({{ totalCourses }}门)
+              </span>
+            </h2>
+            <div class="view-options">
+              <el-button-group>
+                <el-button 
+                  :type="viewMode === 'grid' ? 'primary' : 'default'"
+                  @click="viewMode = 'grid'"
+                >
+                  <el-icon><Grid /></el-icon>
+                  网格视图
+                </el-button>
+                <el-button 
+                  :type="viewMode === 'list' ? 'primary' : 'default'"
+                  @click="viewMode = 'list'"
+                >
+                  <el-icon><List /></el-icon>
+                  列表视图
+                </el-button>
+              </el-button-group>
+            </div>
+          </div>
+
+          <!-- 网格视图 -->
+          <div v-if="viewMode === 'grid' && !isLoadingCourses" class="courses-grid">
+            <div 
+              v-for="course in paginatedCourses" 
+              :key="course.id" 
+              class="course-card"
+              @click="viewCourse(course)"
+            >
+              <div class="course-image">
+                <img :src="course.thumbnail || course.coverImage || `https://picsum.photos/400/250?random=${course.id}`" :alt="course.title" />
+                <div class="course-overlay">
+                  <el-button type="primary" size="small" @click.stop="startLearning(course)">
+                    开始学习
+                  </el-button>
+                </div>
+                <div class="course-status" :class="course.status">
+                  {{ getStatusText(course.status) }}
+                </div>
+              </div>
+              
+              <div class="course-content">
+                <div class="course-category">{{ course.category }}</div>
+                <h3 class="course-title">{{ course.title }}</h3>
+                <p class="course-description">{{ course.description }}</p>
+                
+                <div class="course-meta">
+                  <div class="meta-item">
+                    <el-icon><Clock /></el-icon>
+                    <span>{{ course.duration }}小时</span>
+                  </div>
+                  <div class="meta-item">
+                    <el-icon><User /></el-icon>
+                    <span>{{ course.instructor }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <el-icon><Star /></el-icon>
+                    <span>{{ course.rating }}</span>
+                  </div>
+                </div>
+                
+                <div class="course-progress" v-if="course.progress !== undefined">
+                  <el-progress 
+                    :percentage="course.progress" 
+                    :stroke-width="6"
+                    :show-text="false"
+                  />
+                  <span class="progress-text">{{ course.progress }}% 完成</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 列表视图 -->
+          <div v-else-if="viewMode === 'list' && !isLoadingCourses" class="courses-list">
+            <div 
+              v-for="course in paginatedCourses" 
+              :key="course.id" 
+              class="course-list-item"
+              @click="viewCourse(course)"
+            >
+              <div class="course-list-image">
+                <img :src="course.thumbnail || course.coverImage || `https://picsum.photos/400/250?random=${course.id}`" :alt="course.title" />
+                <div class="course-status" :class="course.status">
+                  {{ getStatusText(course.status) }}
+                </div>
+              </div>
+              
+              <div class="course-list-content">
+                <div class="course-list-header">
+                  <div class="course-list-category">{{ course.category }}</div>
+                  <h3 class="course-list-title">{{ course.title }}</h3>
+                  <p class="course-list-description">{{ course.description }}</p>
+                </div>
+                
+                <div class="course-list-meta">
+                  <div class="meta-item">
+                    <el-icon><Clock /></el-icon>
+                    <span>{{ course.duration }}小时</span>
+                  </div>
+                  <div class="meta-item">
+                    <el-icon><User /></el-icon>
+                    <span>{{ course.instructor }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <el-icon><Star /></el-icon>
+                    <span>{{ course.rating }}</span>
+                  </div>
+                  <div class="meta-item">
+                    <el-icon><TrendCharts /></el-icon>
+                    <span>{{ course.students }}人学习</span>
+                  </div>
+                </div>
+                
+                <div class="course-list-progress" v-if="course.progress !== undefined">
+                  <el-progress 
+                    :percentage="course.progress" 
+                    :stroke-width="8"
+                  />
+                  <span class="progress-text">{{ course.progress }}% 完成</span>
+                </div>
+              </div>
+              
+              <div class="course-list-actions">
+                <el-button 
+                  type="primary" 
+                  size="large"
+                  @click.stop="startLearning(course)"
+                >
+                  开始学习
+                </el-button>
+                <el-button 
+                  type="text" 
+                  size="large"
+                  @click.stop="viewCourse(course)"
+                >
+                  查看详情
+                </el-button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 空状态 -->
+          <div v-if="!isLoadingCourses && courses.length === 0" class="no-courses">
+            <el-empty description="暂无课程数据">
+              <el-button type="primary" @click="loadAllCourses">
+                重新加载课程
+              </el-button>
+            </el-empty>
+          </div>
+
+          <!-- 分页 -->
+          <div v-if="!isLoadingCourses && courses.length > 0" class="pagination-section">
+            <el-pagination
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :page-sizes="[6, 12, 18, 24]"
+              :total="totalCourses"
+              layout="total, sizes, prev, pager, next, jumper"
+              @size-change="handleSizeChange"
+              @current-change="handleCurrentChange"
+            />
           </div>
         </div>
 
@@ -183,165 +353,6 @@
                 重新获取推荐
               </el-button>
             </el-empty>
-          </div>
-        </div>
-
-        <!-- 课程列表 -->
-        <div class="courses-section">
-          <div class="section-header">
-            <h2 class="section-title">全部课程</h2>
-            <div class="view-options">
-              <el-button-group>
-                <el-button 
-                  :type="viewMode === 'grid' ? 'primary' : 'default'"
-                  @click="viewMode = 'grid'"
-                >
-                  <el-icon><Grid /></el-icon>
-                  网格视图
-                </el-button>
-                <el-button 
-                  :type="viewMode === 'list' ? 'primary' : 'default'"
-                  @click="viewMode = 'list'"
-                >
-                  <el-icon><List /></el-icon>
-                  列表视图
-                </el-button>
-              </el-button-group>
-            </div>
-          </div>
-
-          <!-- 网格视图 -->
-          <div v-if="viewMode === 'grid'" class="courses-grid">
-            <div 
-              v-for="course in filteredCourses" 
-              :key="course.id" 
-              class="course-card"
-              @click="viewCourse(course)"
-            >
-              <div class="course-image">
-                <img :src="course.coverImage" :alt="course.title" />
-                <div class="course-overlay">
-                  <el-button type="primary" size="small" @click.stop="startLearning(course)">
-                    开始学习
-                  </el-button>
-                </div>
-                <div class="course-status" :class="course.status">
-                  {{ getStatusText(course.status) }}
-                </div>
-              </div>
-              
-              <div class="course-content">
-                <div class="course-category">{{ course.category }}</div>
-                <h3 class="course-title">{{ course.title }}</h3>
-                <p class="course-description">{{ course.description }}</p>
-                
-                <div class="course-meta">
-                  <div class="meta-item">
-                    <el-icon><Clock /></el-icon>
-                    <span>{{ course.duration }}小时</span>
-                  </div>
-                  <div class="meta-item">
-                    <el-icon><User /></el-icon>
-                    <span>{{ course.instructor }}</span>
-                  </div>
-                  <div class="meta-item">
-                    <el-icon><Star /></el-icon>
-                    <span>{{ course.rating }}</span>
-                  </div>
-                </div>
-                
-                <div class="course-progress" v-if="course.progress !== undefined">
-                  <el-progress 
-                    :percentage="course.progress" 
-                    :stroke-width="6"
-                    :show-text="false"
-                  />
-                  <span class="progress-text">{{ course.progress }}% 完成</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 列表视图 -->
-          <div v-else class="courses-list">
-            <div 
-              v-for="course in filteredCourses" 
-              :key="course.id" 
-              class="course-list-item"
-              @click="viewCourse(course)"
-            >
-              <div class="course-list-image">
-                <img :src="course.coverImage" :alt="course.title" />
-                <div class="course-status" :class="course.status">
-                  {{ getStatusText(course.status) }}
-                </div>
-              </div>
-              
-              <div class="course-list-content">
-                <div class="course-list-header">
-                  <div class="course-list-category">{{ course.category }}</div>
-                  <h3 class="course-list-title">{{ course.title }}</h3>
-                  <p class="course-list-description">{{ course.description }}</p>
-                </div>
-                
-                <div class="course-list-meta">
-                  <div class="meta-item">
-                    <el-icon><Clock /></el-icon>
-                    <span>{{ course.duration }}小时</span>
-                  </div>
-                  <div class="meta-item">
-                    <el-icon><User /></el-icon>
-                    <span>{{ course.instructor }}</span>
-                  </div>
-                  <div class="meta-item">
-                    <el-icon><Star /></el-icon>
-                    <span>{{ course.rating }}</span>
-                  </div>
-                  <div class="meta-item">
-                    <el-icon><TrendCharts /></el-icon>
-                    <span>{{ course.students }}人学习</span>
-                  </div>
-                </div>
-                
-                <div class="course-list-progress" v-if="course.progress !== undefined">
-                  <el-progress 
-                    :percentage="course.progress" 
-                    :stroke-width="8"
-                  />
-                  <span class="progress-text">{{ course.progress }}% 完成</span>
-                </div>
-              </div>
-              
-              <div class="course-list-actions">
-                <el-button 
-                  type="primary" 
-                  size="large"
-                  @click.stop="startLearning(course)"
-                >
-                  开始学习
-                </el-button>
-                <el-button 
-                  type="text" 
-                  size="large"
-                  @click.stop="viewCourse(course)"
-                >
-                  查看详情
-                </el-button>
-              </div>
-            </div>
-          </div>
-
-          <!-- 分页 -->
-          <div class="pagination-section">
-            <el-pagination
-              v-model:current-page="currentPage"
-              v-model:page-size="pageSize"
-              :page-sizes="[12, 24, 36, 48]"
-              :total="totalCourses"
-              layout="total, sizes, prev, pager, next, jumper"
-              @size-change="handleSizeChange"
-              @current-change="handleCurrentChange"
-            />
           </div>
         </div>
       </div>
@@ -432,7 +443,7 @@ const selectedLevel = ref('')
 const selectedStatus = ref('')
 const viewMode = ref('grid')
 const currentPage = ref(1)
-const pageSize = ref(12)
+const pageSize = ref(6)
 const showCourseModal = ref(false)
 const selectedCourse = ref(null)
 const showCreateModal = ref(false)
@@ -457,104 +468,9 @@ const categories = ref([
   { id: 'art', name: '艺术文化' }
 ])
 
-// 课程数据
-const courses = ref([
-  {
-    id: 1,
-    title: 'Vue.js 3.0 完全指南',
-    description: '从零开始学习Vue.js 3.0，掌握现代前端开发技术',
-    category: '编程开发',
-    level: '中级',
-    duration: 24,
-    instructor: '张老师',
-    rating: 4.8,
-    students: 1250,
-    coverImage: 'https://picsum.photos/400/250?random=1',
-    status: 'in_progress',
-    progress: 65,
-    chapters: [
-      {
-        title: 'Vue.js 3.0 基础',
-        duration: 120,
-        lessons: [
-          { id: 1, title: 'Vue.js 3.0 介绍', duration: 15 },
-          { id: 2, title: '组合式API', duration: 25 },
-          { id: 3, title: '响应式系统', duration: 20 }
-        ]
-      }
-    ]
-  },
-  {
-    id: 2,
-    title: 'React 18 实战教程',
-    description: '学习React 18最新特性，构建现代化Web应用',
-    category: '编程开发',
-    level: '中级',
-    duration: 32,
-    instructor: '李老师',
-    rating: 4.9,
-    students: 2100,
-    coverImage: 'https://picsum.photos/400/250?random=2',
-    status: 'not_started',
-    progress: 0
-  },
-  {
-    id: 3,
-    title: 'UI/UX 设计基础',
-    description: '掌握现代UI/UX设计原则和工具使用',
-    category: '设计创意',
-    level: '初级',
-    duration: 18,
-    instructor: '王老师',
-    rating: 4.7,
-    students: 890,
-    coverImage: 'https://picsum.photos/400/250?random=3',
-    status: 'completed',
-    progress: 100
-  },
-  {
-    id: 4,
-    title: 'Python 数据分析',
-    description: '使用Python进行数据分析和可视化',
-    category: '科学技术',
-    level: '高级',
-    duration: 28,
-    instructor: '陈老师',
-    rating: 4.6,
-    students: 1560,
-    coverImage: 'https://picsum.photos/400/250?random=4',
-    status: 'in_progress',
-    progress: 35
-  },
-  {
-    id: 5,
-    title: '英语口语提升',
-    description: '提升英语口语表达能力，掌握地道表达',
-    category: '语言学习',
-    level: '初级',
-    duration: 20,
-    instructor: 'Sarah老师',
-    rating: 4.8,
-    students: 980,
-    coverImage: 'https://picsum.photos/400/250?random=5',
-    status: 'not_started',
-    progress: 0
-  },
-  {
-    id: 6,
-    title: '项目管理实战',
-    description: '学习项目管理方法论和实用工具',
-    category: '商业管理',
-    level: '中级',
-    duration: 22,
-    instructor: '赵老师',
-    rating: 4.7,
-    students: 720,
-    coverImage: 'https://picsum.photos/400/250?random=6',
-    status: 'not_started',
-    progress: 0
-  }
-])
+// 课程数据 - 从API获取
+const courses = ref([])
+const isLoadingCourses = ref(false)
 
 // 课程统计
 const courseStats = reactive({
@@ -616,6 +532,150 @@ const loadCourseStats = async () => {
   }
 }
 
+// 加载全部课程数据 - 新增功能，自动触发
+const loadAllCourses = async () => {
+  isLoadingCourses.value = true
+  try {
+    // 获取当前用户ID，如果没有登录则使用默认值
+    const userId = authStore.user?.id || 'f75fc652-1688-412b-af72-d0caf948b76f'
+    console.log('正在获取全部课程，用户ID:', userId)
+    
+    // 使用支持用户ID的API方法，实现自动触发
+    const response = await courseAPI.getAllCoursesForUser(userId, {
+      includeProgress: true,
+      includeRatings: true
+    })
+    console.log('全部课程API响应:', response)
+    
+    // 根据n8n工作流返回的数据结构进行解析
+    if (response && response.success && response.data) {
+      const data = response.data
+      courses.value = data.courses || []
+      
+      console.log('全部课程数据更新成功:', courses.value.length, '门课程')
+      ElMessage.success(`成功加载 ${courses.value.length} 门课程`)
+    } else if (response && Array.isArray(response)) {
+      // 如果直接返回课程数组
+      courses.value = response
+      console.log('全部课程数据更新成功:', courses.value.length, '门课程')
+      ElMessage.success(`成功加载 ${courses.value.length} 门课程`)
+    } else {
+      console.warn('全部课程API返回格式异常:', response)
+      ElMessage.warning('课程数据异常，显示默认课程')
+      // 保持默认的静态数据作为后备
+      courses.value = getDefaultCourses()
+    }
+  } catch (error) {
+    console.error('获取全部课程失败:', error)
+    ElMessage.error(`获取课程数据失败: ${error.message || '请检查网络连接和n8n工作流状态'}`)
+    // 使用默认课程数据作为后备
+    courses.value = getDefaultCourses()
+  } finally {
+    isLoadingCourses.value = false
+  }
+}
+
+// 默认课程数据作为后备
+const getDefaultCourses = () => {
+  return [
+    {
+      id: 1,
+      title: 'Vue.js 3.0 完全指南',
+      description: '从零开始学习Vue.js 3.0，掌握现代前端开发技术',
+      category: '编程开发',
+      level: '中级',
+      duration: 24,
+      instructor: '张老师',
+      rating: 4.8,
+      students: 1250,
+      coverImage: 'https://picsum.photos/400/250?random=1',
+      status: 'in_progress',
+      progress: 65,
+      chapters: [
+        {
+          title: 'Vue.js 3.0 基础',
+          duration: 120,
+          lessons: [
+            { id: 1, title: 'Vue.js 3.0 介绍', duration: 15 },
+            { id: 2, title: '组合式API', duration: 25 },
+            { id: 3, title: '响应式系统', duration: 20 }
+          ]
+        }
+      ]
+    },
+    {
+      id: 2,
+      title: 'React 18 实战教程',
+      description: '学习React 18最新特性，构建现代化Web应用',
+      category: '编程开发',
+      level: '中级',
+      duration: 32,
+      instructor: '李老师',
+      rating: 4.9,
+      students: 2100,
+      coverImage: 'https://picsum.photos/400/250?random=2',
+      status: 'not_started',
+      progress: 0
+    },
+    {
+      id: 3,
+      title: 'UI/UX 设计基础',
+      description: '掌握现代UI/UX设计原则和工具使用',
+      category: '设计创意',
+      level: '初级',
+      duration: 18,
+      instructor: '王老师',
+      rating: 4.7,
+      students: 890,
+      coverImage: 'https://picsum.photos/400/250?random=3',
+      status: 'completed',
+      progress: 100
+    },
+    {
+      id: 4,
+      title: 'Python 数据分析',
+      description: '使用Python进行数据分析和可视化',
+      category: '科学技术',
+      level: '高级',
+      duration: 28,
+      instructor: '陈老师',
+      rating: 4.6,
+      students: 1560,
+      coverImage: 'https://picsum.photos/400/250?random=4',
+      status: 'in_progress',
+      progress: 35
+    },
+    {
+      id: 5,
+      title: '英语口语提升',
+      description: '提升英语口语表达能力，掌握地道表达',
+      category: '语言学习',
+      level: '初级',
+      duration: 20,
+      instructor: 'Sarah老师',
+      rating: 4.8,
+      students: 980,
+      coverImage: 'https://picsum.photos/400/250?random=5',
+      status: 'not_started',
+      progress: 0
+    },
+    {
+      id: 6,
+      title: '项目管理实战',
+      description: '学习项目管理方法论和实用工具',
+      category: '商业管理',
+      level: '中级',
+      duration: 22,
+      instructor: '赵老师',
+      rating: 4.7,
+      students: 720,
+      coverImage: 'https://picsum.photos/400/250?random=6',
+      status: 'not_started',
+      progress: 0
+    }
+  ]
+}
+
 // 加载推荐课程数据
 const loadRecommendedCourses = async () => {
   isLoadingRecommendations.value = true
@@ -625,7 +685,7 @@ const loadRecommendedCourses = async () => {
     console.log('正在获取推荐课程，用户ID:', userId)
     
     const response = await courseAPI.getRecommendedCourses(userId, {
-      limit: 6,
+      limit: 3,
       category: selectedCategory.value || ''
     })
     console.log('推荐课程API响应:', response)
@@ -694,6 +754,13 @@ const filteredCourses = computed(() => {
 
 const totalCourses = computed(() => filteredCourses.value.length)
 
+// 分页后的课程数据
+const paginatedCourses = computed(() => {
+  const start = (currentPage.value - 1) * pageSize.value
+  const end = start + pageSize.value
+  return filteredCourses.value.slice(start, end)
+})
+
 // 方法
 const handleSearch = () => {
   currentPage.value = 1
@@ -701,8 +768,7 @@ const handleSearch = () => {
 
 const handleCategoryChange = () => {
   currentPage.value = 1
-  // 重新加载推荐课程（基于新的分类筛选）
-  loadRecommendedCourses()
+  // 分类筛选只影响全部课程，不重新加载推荐课程
 }
 
 const handleLevelChange = () => {
@@ -751,21 +817,24 @@ const getStatusText = (status) => {
 const handleCreateSuccess = () => {
   // 刷新课程列表
   ElMessage.success('课程创建成功！')
-  // 重新加载课程统计数据和推荐课程
+  // 重新加载所有数据：课程统计、推荐课程和全部课程
   Promise.all([
     loadCourseStats(),
-    loadRecommendedCourses()
+    loadRecommendedCourses(),
+    loadAllCourses()  // 新增：重新加载全部课程
   ])
 }
 
-// 组件挂载时
+// 组件挂载时 - 自动触发获取全部课程
 onMounted(async () => {
-  console.log('课程页面已加载')
-  // 并行加载课程统计数据和推荐课程
+  console.log('课程页面已加载，开始自动加载数据...')
+  // 并行加载所有数据：课程统计、推荐课程和全部课程（自动触发）
   await Promise.all([
     loadCourseStats(),
-    loadRecommendedCourses()
+    loadRecommendedCourses(),
+    loadAllCourses()  // 🎯 关键：自动触发获取全部课程
   ])
+  console.log('课程页面数据加载完成')
 })
 </script>
 
@@ -843,6 +912,27 @@ onMounted(async () => {
   gap: 20px;
   align-items: center;
   flex-wrap: wrap;
+}
+
+/* 横向布局样式 */
+.search-filter-section.horizontal-layout {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr;
+  gap: 20px;
+  align-items: center;
+}
+
+.search-input-horizontal {
+  width: 100%;
+}
+
+.search-input-horizontal :deep(.el-input__wrapper) {
+  border-radius: 25px;
+}
+
+.filter-select-horizontal {
+  width: 100%;
+  min-width: 150px;
 }
 
 .search-box {
@@ -1301,6 +1391,11 @@ onMounted(async () => {
     align-items: stretch;
   }
   
+  .search-filter-section.horizontal-layout {
+    grid-template-columns: 1fr;
+    gap: 15px;
+  }
+  
   .search-box {
     min-width: auto;
   }
@@ -1557,6 +1652,23 @@ onMounted(async () => {
 .no-recommendations {
   text-align: center;
   padding: 60px 20px;
+}
+
+/* 课程计数样式 */
+.course-count {
+  font-size: 1.2rem;
+  font-weight: 500;
+  color: #667eea;
+  margin-left: 8px;
+}
+
+/* 空课程状态 */
+.no-courses {
+  text-align: center;
+  padding: 60px 20px;
+  background: #f8f9fa;
+  border-radius: 12px;
+  margin: 20px 0;
 }
 
 /* 响应式设计 - 推荐课程 */

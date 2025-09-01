@@ -8,13 +8,13 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "id": "64ac7f5a-8caf-4b58-ba75-c6d0d6a6e8c6",
+      "id": "787f6d73-5b70-45bb-810d-5bf5e95bbb27",
       "name": "AI问答触发器",
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2,
       "position": [
-        -80,
-        192
+        304,
+        256
       ],
       "webhookId": "ai-question"
     },
@@ -44,13 +44,13 @@
         },
         "options": {}
       },
-      "id": "609d77d0-80ca-4b18-a06c-2809c3d19985",
+      "id": "a8404ea7-9f45-4460-b4ec-25f38501a543",
       "name": "解析输入",
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        128,
-        192
+        512,
+        256
       ]
     },
     {
@@ -76,26 +76,26 @@
         },
         "options": {}
       },
-      "id": "abdc6bcd-775d-48fb-a4b4-b6733cc47971",
+      "id": "1aa65dd0-20ba-47e5-b87a-26b4e8ac1802",
       "name": "验证输入",
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        320,
-        192
+        704,
+        256
       ]
     },
     {
       "parameters": {
         "jsCode": "const inputData = $('解析输入').first().json;\n\nconsole.log('构建AI请求 - 输入数据:', JSON.stringify(inputData));\n\n// 确保userId符合Dify要求格式\nlet userId = inputData.userId;\nif (!userId || userId.trim() === '' || userId === 'undefined' || userId === 'null') {\n  userId = 'user-' + Date.now(); // 使用连字符格式，符合示例\n}\n\n// 确保question不为空\nlet question = inputData.question;\nif (!question || question.trim() === '') {\n  throw new Error('问题内容不能为空');\n}\n\nconst result = {\n  userId: userId,\n  question: question.trim(),\n  context: inputData.context || '',\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('构建AI请求 - 输出数据:', JSON.stringify(result));\nconsole.log('即将发送给Dify - userId:', userId, 'question:', question);\nreturn result;"
       },
-      "id": "20c7180a-7387-459e-ac86-37c996da59b7",
+      "id": "24bcb371-38d0-4aaf-b5a1-8795b9a159f3",
       "name": "构建AI请求",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        528,
-        192
+        912,
+        256
       ]
     },
     {
@@ -133,26 +133,26 @@
         },
         "options": {}
       },
-      "id": "b2414423-2c08-47a8-a292-ec38db2bae14",
+      "id": "99fc4c84-e6a0-4c02-a897-40070d3ed045",
       "name": "调用Dify AI",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        720,
-        192
+        1104,
+        256
       ]
     },
     {
       "parameters": {
         "jsCode": "const response = $input.first().json;\nconst requestData = $('构建AI请求').first().json;\n\nlet aiAnswer = '';\nlet success = false;\n\nconsole.log('Dify API响应:', JSON.stringify(response));\n\n// 解析Dify聊天助手API响应格式\nif (response) {\n  // Dify聊天助手标准响应格式: response.answer\n  if (response.answer && typeof response.answer === 'string') {\n    aiAnswer = response.answer;\n    success = true;\n  }\n  // 检查是否有错误\n  else if (response.code && response.code !== 200) {\n    console.log('Dify API错误:', response.message || response.error);\n    aiAnswer = 'AI服务暂时不可用，请稍后再试。';\n    success = false;\n  }\n  // 其他可能的响应格式\n  else if (response.data && response.data.answer) {\n    aiAnswer = response.data.answer;\n    success = true;\n  }\n}\n\n// 如果AI调用失败，提供友好的错误回复\nif (!success || !aiAnswer.trim()) {\n  aiAnswer = '抱歉，我现在遇到了一些技术问题，无法正常回答您的问题。请稍后再试。';\n  success = false;\n  console.log('Dify响应解析失败，原始响应:', JSON.stringify(response));\n}\n\nreturn {\n  userId: requestData.userId,\n  question: requestData.question,\n  answer: aiAnswer.trim(),\n  success: success,\n  timestamp: new Date().toISOString()\n};"
       },
-      "id": "b70fff62-fc6f-476d-8cda-e5450fbd0c95",
+      "id": "97f1d07a-fbba-4409-b044-21a08846455e",
       "name": "处理响应",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        928,
-        192
+        1312,
+        256
       ]
     },
     {
@@ -166,13 +166,13 @@
         },
         "options": {}
       },
-      "id": "301872b5-867b-4060-b74e-c6fd1d53db5a",
+      "id": "294609f4-a3c8-461f-96fc-401f7b0a2615",
       "name": "成功响应",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        1120,
-        192
+        1504,
+        256
       ]
     },
     {
@@ -187,13 +187,13 @@
           "responseCode": 400
         }
       },
-      "id": "a3e1f6cd-5b8d-4a52-8e06-4da60384b886",
+      "id": "be221e3b-81b2-402f-ae97-87ad41ad3c9e",
       "name": "错误响应",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1,
       "position": [
-        528,
-        304
+        912,
+        368
       ]
     }
   ],
@@ -277,7 +277,7 @@
   "settings": {
     "executionOrder": "v1"
   },
-  "versionId": "a413fbd8-5d59-462c-a321-8f9e9567c8f7",
+  "versionId": "bd97273f-283f-4a34-830f-35435b2b309c",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "05ac2e44f854bb011b13eeea1560430c3dcea8c972692ef9e0ee9b9856a82398"

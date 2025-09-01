@@ -71,6 +71,38 @@
 - **查询参数**: `userId` (可选)
 - **输出**: 完整的课程信息，包括章节、评分、用户进度等
 
+### 6. get-all-courses.json
+**功能**: 查询全部课程（无分页限制）
+- **触发方式**: GET `/webhook/all-courses`
+- **查询参数**:
+  - `category`: 分类过滤
+  - `difficulty`: 难度过滤
+  - `status`: 状态过滤 (active/inactive/draft/archived)
+  - `includeStats`: 是否包含统计信息 (默认true)
+  - `format`: 数据格式 (minimal/simple/detailed)
+  - `sortBy`: 排序字段
+  - `sortOrder`: 排序方向
+- **输出**: 完整的课程列表和详细统计信息
+- **特点**: 
+  - 支持三种数据格式（minimal/simple/detailed）
+  - 包含丰富的统计分析数据
+  - 并行查询多个数据源以提高性能
+  - 完善的错误处理机制
+
+### 7. get-all-courses-with-user.json ⭐ **推荐使用**
+**功能**: 查询全部课程（支持用户个性化，自动触发）
+- **触发方式**: GET `/webhook/api/courses/all/{userId}`
+- **路径参数**: `userId` (用户ID，匿名用户使用 'anonymous')
+- **查询参数**: 与 get-all-courses.json 相同
+- **输出**: 个性化的课程列表和用户统计信息
+- **个性化特性**:
+  - 显示用户学习进度和注册状态
+  - 已注册课程优先排序
+  - 包含用户个人学习统计
+  - 支持匿名和登录用户
+- **自动触发**: 适合在进入课程学习界面时自动调用
+- **使用场景**: 课程学习中心、个人学习面板
+
 ## 数据库表结构
 
 请参考 `supabase-schema.md` 文件中的完整数据库设计。
@@ -118,8 +150,10 @@
 | POST | `/webhook/create-course` | 创建课程 |
 | GET | `/webhook/course-stats/{userId}` | 获取统计信息 |
 | GET | `/webhook/recommend-courses/{userId}` | 获取推荐课程 |
-| GET | `/webhook/course-list` | 获取课程列表 |
+| GET | `/webhook/course-list` | 获取课程列表（分页） |
 | GET | `/webhook/course-details/{courseId}` | 获取课程详情 |
+| GET | `/webhook/all-courses` | 查询全部课程（无分页） |
+| GET | `/webhook/api/courses/all/{userId}` | ⭐ 个性化全部课程（推荐） |
 
 ## 前端集成
 
@@ -151,11 +185,62 @@ import { courseAPI } from '@/services/n8n-api.js'
 // 创建课程
 const result = await courseAPI.createCourse(courseData)
 
-// 获取课程列表
-const courses = await courseAPI.getAllCourses({ page: 1, limit: 12 })
+// 获取课程列表（分页）
+const courseList = await courseAPI.getAllCourses({ page: 1, limit: 12 })
+
+// ⭐ 推荐：获取个性化全部课程（进入课程界面时自动触发）
+const personalizedCourses = await courseAPI.getAllCoursesForUser(userId, {
+  format: 'detailed',
+  includeStats: true,
+  sortBy: 'rating',
+  sortOrder: 'desc'
+})
+
+// 匿名用户获取课程
+const anonymousCourses = await courseAPI.getAllCoursesForUser('anonymous', {
+  format: 'simple',
+  includeStats: false
+})
+
+// 获取全部课程（无分页，支持多种格式）
+const allCourses = await courseAPI.getAllCourses({
+  category: 'programming',
+  format: 'detailed',
+  includeStats: true,
+  sortBy: 'rating',
+  sortOrder: 'desc'
+})
 
 // 获取推荐课程
 const recommendations = await courseAPI.getRecommendedCourses(userId)
+
+// 获取课程统计
+const stats = await courseAPI.getCourseStats(userId)
+```
+
+### 自动触发示例（Vue 3）
+```javascript
+// 在课程学习页面组件中
+import { onMounted, watch } from 'vue'
+import { courseAPI } from '@/services/n8n-api.js'
+import { useUserStore } from '@/stores/user'
+
+const userStore = useUserStore()
+const courses = ref([])
+
+// 页面加载时自动获取个性化课程
+onMounted(async () => {
+  const userId = userStore.user?.id || 'anonymous'
+  const response = await courseAPI.getAllCoursesForUser(userId)
+  courses.value = response.data.courses
+})
+
+// 用户登录状态变化时重新加载
+watch(() => userStore.user, async (newUser) => {
+  const userId = newUser?.id || 'anonymous'
+  const response = await courseAPI.getAllCoursesForUser(userId)
+  courses.value = response.data.courses
+})
 ```
 
 ## 测试

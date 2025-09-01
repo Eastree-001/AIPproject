@@ -1,0 +1,343 @@
+{
+  "name": "清除对话历史",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/ai/clear-history",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "clear-history-webhook",
+      "name": "清除历史触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        304,
+        256
+      ],
+      "webhookId": "clear-conversation-history"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "userId",
+              "name": "userId",
+              "value": "={{ $('清除历史触发器').item.json.body.userId }}",
+              "type": "string"
+            },
+            {
+              "id": "sessionId",
+              "name": "sessionId",
+              "value": "={{ $('清除历史触发器').item.json.body.sessionId || '' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "parse-clear-input",
+      "name": "解析输入参数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "user-id-exists",
+              "leftValue": "={{ $json.userId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-clear-input",
+      "name": "验证输入",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        704,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-session-id",
+              "leftValue": "={{ $json.sessionId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-clear-session-id",
+      "name": "检查会话ID",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        896,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "schema": {
+          "value": "public"
+        },
+        "table": {
+          "value": "conversation_history"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "user_id",
+              "condition": "equal",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "column": "session_id",
+              "condition": "equal",
+              "value": "={{ $json.sessionId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clear-session-history",
+      "name": "清除会话历史",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        176
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "delete",
+        "schema": {
+          "value": "public"
+        },
+        "table": {
+          "value": "conversation_history"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "user_id",
+              "condition": "equal",
+              "value": "={{ $json.userId }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "clear-all-history",
+      "name": "清除所有历史",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        336
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $('解析输入参数').first().json;\nconst deleteResult = $input.first().json;\n\nconsole.log('清除历史操作结果:', JSON.stringify(deleteResult));\n\nconst result = {\n  success: true,\n  userId: inputData.userId,\n  sessionId: inputData.sessionId || null,\n  message: inputData.sessionId ? \n    `已清除用户 ${inputData.userId} 在会话 ${inputData.sessionId} 中的对话历史` :\n    `已清除用户 ${inputData.userId} 的所有对话历史`,\n  deletedCount: deleteResult.length || 0,\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('清除历史响应:', JSON.stringify(result));\nreturn result;"
+      },
+      "id": "format-clear-response",
+      "name": "格式化清除响应",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1280,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "clear-success-response",
+      "name": "成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1472,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "用户ID不能为空",
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "clear-error-response",
+      "name": "错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        896,
+        368
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "清除历史触发器": {
+      "main": [
+        [
+          {
+            "node": "解析输入参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析输入参数": {
+      "main": [
+        [
+          {
+            "node": "验证输入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证输入": {
+      "main": [
+        [
+          {
+            "node": "检查会话ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查会话ID": {
+      "main": [
+        [
+          {
+            "node": "清除会话历史",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "清除所有历史",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "清除会话历史": {
+      "main": [
+        [
+          {
+            "node": "格式化清除响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "清除所有历史": {
+      "main": [
+        [
+          {
+            "node": "格式化清除响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化清除响应": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "clear-history-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "clear-conversation-history-workflow",
+  "tags": ["ai", "conversation", "clear", "history"]
+}

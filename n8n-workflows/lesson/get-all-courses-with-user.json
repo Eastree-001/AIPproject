@@ -1,0 +1,403 @@
+{
+  "name": "查询全部课程工作流（支持用户ID）",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "api/courses/all/={{ $parameter.userId || 'anonymous' }}",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "all-courses-webhook",
+      "name": "全部课程触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [280, 400],
+      "webhookId": "all-courses-with-user"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "userId",
+              "name": "userId",
+              "value": "={{ $('全部课程触发器').item.json.params.userId || 'anonymous' }}",
+              "type": "string"
+            },
+            {
+              "id": "category",
+              "name": "category",
+              "value": "={{ $('全部课程触发器').item.json.query.category || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "difficulty",
+              "name": "difficulty",
+              "value": "={{ $('全部课程触发器').item.json.query.difficulty || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "status",
+              "name": "status",
+              "value": "={{ $('全部课程触发器').item.json.query.status || 'active' }}",
+              "type": "string"
+            },
+            {
+              "id": "includeStats",
+              "name": "includeStats",
+              "value": "={{ $('全部课程触发器').item.json.query.includeStats === 'false' ? false : true }}",
+              "type": "boolean"
+            },
+            {
+              "id": "format",
+              "name": "format",
+              "value": "={{ $('全部课程触发器').item.json.query.format || 'detailed' }}",
+              "type": "string"
+            },
+            {
+              "id": "sortBy",
+              "name": "sortBy",
+              "value": "={{ $('全部课程触发器').item.json.query.sortBy || 'created_at' }}",
+              "type": "string"
+            },
+            {
+              "id": "sortOrder",
+              "name": "sortOrder",
+              "value": "={{ $('全部课程触发器').item.json.query.sortOrder || 'desc' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "extract-parameters",
+      "name": "提取请求参数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [500, 400]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "status-valid",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "active,inactive,draft,archived",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            },
+            {
+              "id": "format-valid",
+              "leftValue": "={{ $json.format }}",
+              "rightValue": "detailed,simple,minimal",
+              "operator": {
+                "type": "string",
+                "operation": "contains"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-parameters",
+      "name": "验证请求参数",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [720, 400]
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "courses",
+        "returnAll": true
+      },
+      "id": "get-all-courses",
+      "name": "获取所有课程",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 260],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "course_ratings",
+        "returnAll": true
+      },
+      "id": "get-course-ratings",
+      "name": "获取课程评分",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 400],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "user_progress",
+        "returnAll": true
+      },
+      "id": "get-enrollments",
+      "name": "获取注册统计",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 540],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "rows",
+        "operation": "get",
+        "tableId": "lessons",
+        "returnAll": true
+      },
+      "id": "get-lessons",
+      "name": "获取课程章节",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [940, 680],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const params = $('提取请求参数').first().json;\nconst allCourses = $('获取所有课程').first()?.json || [];\nconst allRatings = $('获取课程评分').first()?.json || [];\nconst allEnrollments = $('获取注册统计').first()?.json || [];\nconst allLessons = $('获取课程章节').first()?.json || [];\n\n// 用户ID处理\nconst userId = params.userId;\nconst isAuthenticated = userId && userId !== 'anonymous';\n\n// 构建评分映射\nconst ratingMap = {};\nallRatings.forEach(rating => {\n  if (!ratingMap[rating.course_id]) {\n    ratingMap[rating.course_id] = [];\n  }\n  ratingMap[rating.course_id].push(rating.rating);\n});\n\n// 构建注册数映射\nconst enrollmentMap = {};\nallEnrollments.forEach(enrollment => {\n  const courseId = enrollment.course_id;\n  enrollmentMap[courseId] = (enrollmentMap[courseId] || 0) + 1;\n});\n\n// 构建用户个人进度映射（如果用户已登录）\nconst userProgressMap = {};\nif (isAuthenticated) {\n  allEnrollments.filter(enrollment => enrollment.user_id === userId).forEach(enrollment => {\n    userProgressMap[enrollment.course_id] = {\n      progress: enrollment.progress || 0,\n      lastAccessed: enrollment.updated_at,\n      isEnrolled: true\n    };\n  });\n}\n\n// 构建课程章节数映射\nconst lessonCountMap = {};\nallLessons.forEach(lesson => {\n  const courseId = lesson.course_id;\n  lessonCountMap[courseId] = (lessonCountMap[courseId] || 0) + 1;\n});\n\n// 过滤课程\nlet filteredCourses = allCourses;\n\n// 按状态过滤\nif (params.status && params.status !== 'all') {\n  filteredCourses = filteredCourses.filter(course => course.status === params.status);\n}\n\n// 按类别过滤\nif (params.category) {\n  filteredCourses = filteredCourses.filter(course => course.category === params.category);\n}\n\n// 按难度过滤\nif (params.difficulty) {\n  filteredCourses = filteredCourses.filter(course => course.difficulty === params.difficulty);\n}\n\n// 增强课程数据\nconst enhancedCourses = filteredCourses.map(course => {\n  const courseRatings = ratingMap[course.id] || [];\n  const avgRating = courseRatings.length > 0 ?\n    Math.round((courseRatings.reduce((sum, rating) => sum + rating, 0) / courseRatings.length) * 10) / 10 : 0;\n  \n  const enrollmentCount = enrollmentMap[course.id] || 0;\n  const lessonCount = lessonCountMap[course.id] || 0;\n  const userProgress = userProgressMap[course.id] || null;\n  \n  // 根据format参数决定返回的数据详细程度\n  const baseData = {\n    id: course.id,\n    title: course.title,\n    category: course.category,\n    difficulty: course.difficulty,\n    status: course.status\n  };\n  \n  // 如果用户已登录，添加个人相关信息\n  if (isAuthenticated && userProgress) {\n    baseData.userProgress = userProgress.progress;\n    baseData.isEnrolled = userProgress.isEnrolled;\n    baseData.lastAccessed = userProgress.lastAccessed;\n  }\n  \n  if (params.format === 'minimal') {\n    return baseData;\n  }\n  \n  const simpleData = {\n    ...baseData,\n    description: course.description,\n    instructor: course.instructor,\n    duration: course.duration,\n    thumbnail: course.thumbnail,\n    price: course.price,\n    avgRating: avgRating,\n    enrollmentCount: enrollmentCount,\n    lessonCount: lessonCount\n  };\n  \n  if (params.format === 'simple') {\n    return simpleData;\n  }\n  \n  // detailed format (默认)\n  return {\n    ...simpleData,\n    ratingCount: courseRatings.length,\n    tags: course.tags || [],\n    prerequisites: course.prerequisites || [],\n    learningObjectives: course.learning_objectives || [],\n    createdAt: course.created_at,\n    updatedAt: course.updated_at,\n    publishedAt: course.published_at,\n    metadata: {\n      totalRatings: courseRatings.length,\n      ratingDistribution: {\n        5: courseRatings.filter(r => r === 5).length,\n        4: courseRatings.filter(r => r === 4).length,\n        3: courseRatings.filter(r => r === 3).length,\n        2: courseRatings.filter(r => r === 2).length,\n        1: courseRatings.filter(r => r === 1).length\n      },\n      estimatedCompletionTime: lessonCount > 0 ? Math.round(course.duration / lessonCount) : 0\n    }\n  };\n});\n\n// 如果用户已登录，可以根据用户偏好进行个性化排序\nif (isAuthenticated) {\n  // 将用户已注册的课程排在前面\n  enhancedCourses.sort((a, b) => {\n    const aEnrolled = a.isEnrolled ? 1 : 0;\n    const bEnrolled = b.isEnrolled ? 1 : 0;\n    if (aEnrolled !== bEnrolled) {\n      return bEnrolled - aEnrolled; // 已注册的排在前面\n    }\n    // 其他排序逻辑保持不变\n    return 0;\n  });\n}\n\n// 常规排序\nenhancedCourses.sort((a, b) => {\n  let aValue, bValue;\n  \n  switch (params.sortBy) {\n    case 'title':\n      aValue = a.title.toLowerCase();\n      bValue = b.title.toLowerCase();\n      break;\n    case 'rating':\n      aValue = a.avgRating || 0;\n      bValue = b.avgRating || 0;\n      break;\n    case 'enrollment':\n      aValue = a.enrollmentCount || 0;\n      bValue = b.enrollmentCount || 0;\n      break;\n    case 'duration':\n      aValue = a.duration || 0;\n      bValue = b.duration || 0;\n      break;\n    case 'price':\n      aValue = a.price || 0;\n      bValue = b.price || 0;\n      break;\n    case 'difficulty':\n      aValue = a.difficulty || '';\n      bValue = b.difficulty || '';\n      break;\n    case 'updated_at':\n      aValue = new Date(a.updatedAt || a.createdAt).getTime();\n      bValue = new Date(b.updatedAt || b.createdAt).getTime();\n      break;\n    case 'created_at':\n    default:\n      aValue = new Date(a.createdAt).getTime();\n      bValue = new Date(b.createdAt).getTime();\n      break;\n  }\n  \n  if (params.sortOrder === 'asc') {\n    return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;\n  } else {\n    return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;\n  }\n});\n\n// 统计信息\nconst categories = [...new Set(allCourses.map(course => course.category).filter(Boolean))];\nconst difficulties = [...new Set(allCourses.map(course => course.difficulty).filter(Boolean))].sort();\nconst statuses = [...new Set(allCourses.map(course => course.status).filter(Boolean))];\n\n// 计算总体统计\nconst totalRatings = Object.values(ratingMap).flat();\nconst overallAvgRating = totalRatings.length > 0 ?\n  Math.round((totalRatings.reduce((sum, rating) => sum + rating, 0) / totalRatings.length) * 10) / 10 : 0;\n\nconst totalEnrollments = Object.values(enrollmentMap).reduce((sum, count) => sum + count, 0);\nconst activeCourses = allCourses.filter(course => course.status === 'active');\n\n// 用户个人统计（如果已登录）\nlet userStats = null;\nif (isAuthenticated) {\n  const userEnrolledCourses = Object.keys(userProgressMap);\n  const userCompletedCourses = userEnrolledCourses.filter(courseId => {\n    const progress = userProgressMap[courseId];\n    return progress && progress.progress === 100;\n  });\n  \n  userStats = {\n    enrolledCourses: userEnrolledCourses.length,\n    completedCourses: userCompletedCourses.length,\n    inProgressCourses: userEnrolledCourses.length - userCompletedCourses.length,\n    completionRate: userEnrolledCourses.length > 0 ? \n      Math.round((userCompletedCourses.length / userEnrolledCourses.length) * 100) : 0\n  };\n}\n\n// 构建响应数据\nconst responseData = {\n  courses: enhancedCourses,\n  totalCount: enhancedCourses.length,\n  userId: isAuthenticated ? userId : null,\n  isAuthenticated: isAuthenticated,\n  filters: {\n    applied: {\n      category: params.category || null,\n      difficulty: params.difficulty || null,\n      status: params.status,\n      format: params.format,\n      sortBy: params.sortBy,\n      sortOrder: params.sortOrder\n    },\n    available: {\n      categories: categories,\n      difficulties: difficulties,\n      statuses: statuses\n    }\n  }\n};\n\n// 添加用户统计（如果已登录）\nif (userStats) {\n  responseData.userStats = userStats;\n}\n\n// 根据includeStats参数决定是否包含统计信息\nif (params.includeStats) {\n  responseData.stats = {\n    totalCourses: allCourses.length,\n    activeCourses: activeCourses.length,\n    filteredCourses: enhancedCourses.length,\n    overallAvgRating: overallAvgRating,\n    totalEnrollments: totalEnrollments,\n    totalRatings: totalRatings.length,\n    avgEnrollmentsPerCourse: allCourses.length > 0 ? Math.round(totalEnrollments / allCourses.length) : 0,\n    categoryDistribution: categories.reduce((dist, category) => {\n      dist[category] = allCourses.filter(course => course.category === category).length;\n      return dist;\n    }, {}),\n    difficultyDistribution: difficulties.reduce((dist, difficulty) => {\n      dist[difficulty] = allCourses.filter(course => course.difficulty === difficulty).length;\n      return dist;\n    }, {}),\n    statusDistribution: statuses.reduce((dist, status) => {\n      dist[status] = allCourses.filter(course => course.status === status).length;\n      return dist;\n    }, {})\n  };\n}\n\nresponseData.timestamp = new Date().toISOString();\n\nreturn responseData;"
+      },
+      "id": "process-all-courses",
+      "name": "处理全部课程数据",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": true,
+          "data": "={{ $json }}",
+          "timestamp": "={{ $json.timestamp }}"
+        },
+        "options": {}
+      },
+      "id": "success-response",
+      "name": "成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1380, 420]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "参数验证失败：status必须是active、inactive、draft或archived之一，format必须是detailed、simple或minimal之一",
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "responseCode": 400,
+        "options": {}
+      },
+      "id": "validation-error",
+      "name": "参数验证错误",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [940, 600]
+    },
+    {
+      "parameters": {
+        "jsCode": "const error = $input.first().error;\nconst params = $('提取请求参数').first()?.json || {};\n\nreturn {\n  success: false,\n  error: '获取全部课程时发生错误：' + (error.message || '未知错误'),\n  userId: params.userId || null,\n  filters: {\n    category: params.category || null,\n    difficulty: params.difficulty || null,\n    status: params.status || null,\n    format: params.format || null\n  },\n  timestamp: new Date().toISOString(),\n  details: {\n    errorType: error.name || 'UnknownError',\n    errorMessage: error.message || '未知错误'\n  }\n};"
+      },
+      "id": "error-handler",
+      "name": "错误处理",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1160, 620]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "responseCode": 500,
+        "options": {}
+      },
+      "id": "error-response",
+      "name": "错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [1380, 620]
+    }
+  ],
+  "connections": {
+    "全部课程触发器": {
+      "main": [
+        [
+          {
+            "node": "提取请求参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "提取请求参数": {
+      "main": [
+        [
+          {
+            "node": "验证请求参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证请求参数": {
+      "main": [
+        [
+          {
+            "node": "获取所有课程",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取课程评分",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取注册统计",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "获取课程章节",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "参数验证错误",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取所有课程": {
+      "main": [
+        [
+          {
+            "node": "处理全部课程数据",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取课程评分": {
+      "main": [
+        [
+          {
+            "node": "处理全部课程数据",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "获取注册统计": {
+      "main": [
+        [
+          {
+            "node": "处理全部课程数据",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "获取课程章节": {
+      "main": [
+        [
+          {
+            "node": "处理全部课程数据",
+            "type": "main",
+            "index": 3
+          }
+        ]
+      ]
+    },
+    "处理全部课程数据": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ],
+      "error": [
+        [
+          {
+            "node": "错误处理",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "错误处理": {
+      "main": [
+        [
+          {
+            "node": "错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "all-courses-with-user-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "AllCoursesWithUserWorkflow",
+  "tags": ["courses", "all-courses", "user-aware", "personalized", "supabase"]
+}

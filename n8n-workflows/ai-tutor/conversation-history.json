@@ -1,0 +1,367 @@
+{
+  "name": "获取对话历史",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "api/ai/conversation-history",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "history-webhook",
+      "name": "对话历史触发器",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        304,
+        256
+      ],
+      "webhookId": "conversation-history"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "userId",
+              "name": "userId",
+              "value": "={{ $('对话历史触发器').item.json.body.userId }}",
+              "type": "string"
+            },
+            {
+              "id": "sessionId",
+              "name": "sessionId",
+              "value": "={{ $('对话历史触发器').item.json.body.sessionId || '' }}",
+              "type": "string"
+            },
+            {
+              "id": "limit",
+              "name": "limit",
+              "value": "={{ $('对话历史触发器').item.json.body.limit || 10 }}",
+              "type": "number"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "parse-history-input",
+      "name": "解析输入参数",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        512,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "user-id-exists",
+              "leftValue": "={{ $json.userId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "validate-history-input",
+      "name": "验证输入",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        704,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "value": "public"
+        },
+        "table": {
+          "value": "conversation_history"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "user_id",
+              "condition": "equal",
+              "value": "={{ $json.userId }}"
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "created_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "limit": "={{ $json.limit }}",
+        "options": {}
+      },
+      "id": "get-all-history",
+      "name": "获取所有历史",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        896,
+        176
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "select",
+        "schema": {
+          "value": "public"
+        },
+        "table": {
+          "value": "conversation_history"
+        },
+        "where": {
+          "values": [
+            {
+              "column": "user_id",
+              "condition": "equal",
+              "value": "={{ $json.userId }}"
+            },
+            {
+              "column": "session_id",
+              "condition": "equal",
+              "value": "={{ $json.sessionId }}"
+            }
+          ]
+        },
+        "sort": {
+          "values": [
+            {
+              "column": "created_at",
+              "direction": "DESC"
+            }
+          ]
+        },
+        "limit": "={{ $json.limit }}",
+        "options": {}
+      },
+      "id": "get-session-history",
+      "name": "获取会话历史",
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        896,
+        336
+      ],
+      "credentials": {
+        "supabaseApi": {
+          "id": "supabase-credentials",
+          "name": "Supabase API"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "has-session-id",
+              "leftValue": "={{ $json.sessionId }}",
+              "rightValue": "",
+              "operator": {
+                "type": "string",
+                "operation": "notEmpty"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "check-session-id",
+      "name": "检查会话ID",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        896,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.first().json;\nlet historyData = [];\n\n// 获取历史数据\ntry {\n  const historyItems = $input.all();\n  historyItems.forEach(item => {\n    if (item && item.json) {\n      if (Array.isArray(item.json)) {\n        historyData = historyData.concat(item.json);\n      } else {\n        historyData.push(item.json);\n      }\n    }\n  });\n} catch (error) {\n  console.log('处理历史数据时出错:', error.message);\n}\n\n// 按时间排序（最新的在前）\nhistoryData.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));\n\n// 格式化输出\nconst result = {\n  success: true,\n  userId: inputData.userId,\n  sessionId: inputData.sessionId || null,\n  totalCount: historyData.length,\n  conversations: historyData.map(item => ({\n    id: item.id,\n    question: item.question,\n    answer: item.answer,\n    sessionId: item.session_id,\n    createdAt: item.created_at,\n    updatedAt: item.updated_at\n  })),\n  timestamp: new Date().toISOString()\n};\n\nconsole.log('对话历史查询结果:', JSON.stringify(result));\nreturn result;"
+      },
+      "id": "format-history-response",
+      "name": "格式化历史响应",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "id": "history-success-response",
+      "name": "成功响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        1280,
+        256
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": {
+          "success": false,
+          "error": "用户ID不能为空",
+          "timestamp": "={{ new Date().toISOString() }}"
+        },
+        "options": {
+          "responseCode": 400
+        }
+      },
+      "id": "history-error-response",
+      "name": "错误响应",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1,
+      "position": [
+        896,
+        368
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "对话历史触发器": {
+      "main": [
+        [
+          {
+            "node": "解析输入参数",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "解析输入参数": {
+      "main": [
+        [
+          {
+            "node": "验证输入",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "验证输入": {
+      "main": [
+        [
+          {
+            "node": "检查会话ID",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "错误响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "检查会话ID": {
+      "main": [
+        [
+          {
+            "node": "获取会话历史",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "获取所有历史",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取所有历史": {
+      "main": [
+        [
+          {
+            "node": "格式化历史响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "获取会话历史": {
+      "main": [
+        [
+          {
+            "node": "格式化历史响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "格式化历史响应": {
+      "main": [
+        [
+          {
+            "node": "成功响应",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "conversation-history-v1",
+  "meta": {
+    "templateCredsSetupCompleted": true
+  },
+  "id": "conversation-history-workflow",
+  "tags": ["ai", "conversation", "history"]
+}

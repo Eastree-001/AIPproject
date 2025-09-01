@@ -37,10 +37,23 @@ export const authAPI = {
 
 // 课程管理相关API
 export const courseAPI = {
-  // 获取所有课程 - 使用新的课程列表工作流
+  // 获取所有课程 - 使用新的全部课程查询工作流 (POST方式)
   async getAllCourses(params = {}) {
-    const queryParams = new URLSearchParams(params)
-    return await n8nRequest(`/webhook/course-list?${queryParams}`)
+    return await n8nRequest('/webhook/all-courses', {
+      method: 'POST',
+      body: JSON.stringify(params)
+    })
+  },
+
+  // 获取所有课程（支持用户ID，用于个性化显示和自动触发）(POST方式)
+  async getAllCoursesForUser(userId, params = {}) {
+    return await n8nRequest('/webhook/all-courses', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId: userId,
+        ...params
+      })
+    })
   },
 
   // 获取单个课程 - 使用新的课程详情工作流
@@ -122,7 +135,7 @@ export const learningAPI = {
     return await n8nRequest(`/webhook-test/export-records/${userId}?format=${format}`)
   },
 
-  // 🆕 智能学习分析 - 新增功能
+  // 智能学习分析 - 新增功能
   async getSmartAnalytics(userId, analysisType = 'comprehensive', timeRange = 7) {
     return await n8nRequest('/webhook-test/api/ai/learning-analytics', {
       method: 'POST',
@@ -134,7 +147,7 @@ export const learningAPI = {
     })
   },
 
-  // 🆕 批量更新学习进度
+  // 批量更新学习进度
   async batchUpdateProgress(progressList) {
     const results = []
     for (const progress of progressList) {
@@ -225,7 +238,7 @@ export const notificationAPI = {
 
 // OKR管理相关API
 export const okrAPI = {
-  // 🆕 自动更新OKR进度
+  // 自动更新OKR进度
   async autoUpdateProgress(userId, triggerType = 'learning_activity', activityData = {}) {
     return await n8nRequest('/webhook-test/api/okr/auto-update', {
       method: 'POST',
@@ -237,12 +250,12 @@ export const okrAPI = {
     })
   },
 
-  // 🆕 手动触发OKR进度计算
+  // 手动触发OKR进度计算
   async recalculateProgress(userId) {
     return await this.autoUpdateProgress(userId, 'manual_recalculation')
   },
 
-  // 🆕 获取OKR进度历史
+  // 获取OKR进度历史
   async getProgressHistory(okrId) {
     return await n8nRequest(`/webhook-test/okr/progress-history/${okrId}`)
   }
@@ -273,9 +286,62 @@ export const analyticsAPI = {
     })
   },
 
-  // 🆕 获取智能学习洞察 - 整合新的分析工作流
+  // 获取智能学习洞察 - 整合新的分析工作流
   async getSmartInsights(userId, analysisType = 'comprehensive', timeRange = 7) {
     return await learningAPI.getSmartAnalytics(userId, analysisType, timeRange)
+  }
+}
+
+// AI问答相关API
+export const aiAPI = {
+  // 智能问答（原版本，不带记忆）
+  async askQuestion(question, userId = null, context = '') {
+    return await n8nRequest('/webhook/api/ai/question', {
+      method: 'POST',
+      body: JSON.stringify({
+        question,
+        userId,
+        context,
+        useMemory: false
+      })
+    })
+  },
+
+  // 智能问答（带记忆功能）
+  async askQuestionWithMemory(question, userId = null, sessionId = null, context = '') {
+    return await n8nRequest('/webhook/api/ai/question', {
+      method: 'POST',
+      body: JSON.stringify({
+        question,
+        userId,
+        sessionId: sessionId || `session-${userId}-${Date.now()}`,
+        context,
+        useMemory: true
+      })
+    })
+  },
+
+  // 获取对话历史
+  async getConversationHistory(userId, sessionId = null, limit = 10) {
+    return await n8nRequest('/webhook/api/ai/conversation-history', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId,
+        sessionId,
+        limit
+      })
+    })
+  },
+
+  // 清除对话历史
+  async clearConversationHistory(userId, sessionId = null) {
+    return await n8nRequest('/webhook/api/ai/clear-history', {
+      method: 'POST',
+      body: JSON.stringify({
+        userId,
+        sessionId
+      })
+    })
   }
 }
 
@@ -288,5 +354,6 @@ export default {
   community: communityAPI,
   notification: notificationAPI,
   analytics: analyticsAPI,
-  okr: okrAPI  // 🆕 新增OKR API
+  okr: okrAPI,
+  ai: aiAPI
 }
