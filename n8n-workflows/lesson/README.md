@@ -134,7 +134,7 @@
 ### 3. 配置前端
 1. 更新环境变量：
    ```env
-   VITE_N8N_BASE_URL=http://your-n8n-instance:5678
+   VITE_N8N_BASE_URL=https://n8n-yethnxqt.ap-northeast-1.clawcloudrun.com
    ```
 
 2. 测试连接：

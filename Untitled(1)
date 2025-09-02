@@ -1,0 +1,3 @@
+.router-view, .page-wrapper {
+  padding-bottom: 50px;
+}

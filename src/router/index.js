@@ -68,12 +68,7 @@ const routes = [
           component: () => import('../views/LearningRecords.vue'),
           meta: { requiresAuth: true }
         },
-        {
-          path: '/n8n-test',
-          name: 'N8NTest',
-          component: () => import('../views/N8NTestPage.vue'),
-          meta: { requiresAuth: false } // 测试页面，暂时不需要认证
-        },
+
         {
           path: '/course-workflow-test',
           name: 'CourseWorkflowTest',

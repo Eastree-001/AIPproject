@@ -1,7 +1,7 @@
 import { ref } from 'vue'
 
 // n8n API配置
-const N8N_BASE_URL = import.meta.env.VITE_N8N_BASE_URL || 'http://localhost:5678'
+const N8N_BASE_URL = import.meta.env.VITE_N8N_BASE_URL || 'https://n8n-yethnxqt.ap-northeast-1.clawcloudrun.com'
 
 // 通用API请求函数
 async function n8nRequest(endpoint, options = {}) {
@@ -166,7 +166,7 @@ export const learningAPI = {
 export const aiTutorAPI = {
   // 发送问题
   async askQuestion(questionData) {
-    return await n8nRequest('/webhook-test/api/ai/question', {
+    return await n8nRequest('/webhook/api/ai/question', {
       method: 'POST',
       body: JSON.stringify(questionData)
     })
@@ -236,30 +236,7 @@ export const notificationAPI = {
   }
 }
 
-// OKR管理相关API
-export const okrAPI = {
-  // 自动更新OKR进度
-  async autoUpdateProgress(userId, triggerType = 'learning_activity', activityData = {}) {
-    return await n8nRequest('/webhook-test/api/okr/auto-update', {
-      method: 'POST',
-      body: JSON.stringify({
-        userId,
-        triggerType,
-        activityData
-      })
-    })
-  },
 
-  // 手动触发OKR进度计算
-  async recalculateProgress(userId) {
-    return await this.autoUpdateProgress(userId, 'manual_recalculation')
-  },
-
-  // 获取OKR进度历史
-  async getProgressHistory(okrId) {
-    return await n8nRequest(`/webhook-test/okr/progress-history/${okrId}`)
-  }
-}
 
 // 数据分析相关API
 export const analyticsAPI = {
@@ -354,6 +331,5 @@ export default {
   community: communityAPI,
   notification: notificationAPI,
   analytics: analyticsAPI,
-  okr: okrAPI,
   ai: aiAPI
 }

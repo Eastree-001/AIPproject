@@ -12,14 +12,8 @@
           </h1>
           <p class="page-subtitle">详细查看您的学习历程和成就轨迹</p>
           <div class="header-actions">
-            <el-button type="success" @click="showProgressTracker = true">
-              <el-icon><Plus /></el-icon>
-              记录进度
-            </el-button>
-            <el-button type="primary" @click="showSmartAnalytics = true">
-              <el-icon><TrendCharts /></el-icon>
-              智能分析
-            </el-button>
+            <!-- 记录进度功能已移除 -->
+            <!-- 智能分析功能已移除 -->
             <el-button @click="exportRecords">
               <el-icon><Download /></el-icon>
               导出记录
@@ -387,32 +381,8 @@
       </template>
     </el-dialog>
 
-    <!-- 学习进度记录模态框 -->
-    <el-dialog
-      v-model="showProgressTracker"
-      title="记录学习进度"
-      width="800px"
-      :before-close="handleCloseProgressTracker"
-    >
-      <LearningProgressTracker
-        :userId="currentUserId"
-        @progress-updated="handleProgressUpdated"
-        @view-all-records="showProgressTracker = false"
-      />
-    </el-dialog>
-
-    <!-- 智能学习分析模态框 -->
-    <el-dialog
-      v-model="showSmartAnalytics"
-      title="智能学习分析"
-      width="1000px"
-      :before-close="handleCloseAnalytics"
-    >
-      <SmartLearningAnalytics
-        :userId="currentUserId"
-        ref="smartAnalyticsRef"
-      />
-    </el-dialog>
+    <!-- 学习进度记录功能已移除 -->
+    <!-- 智能学习分析功能已移除 -->
   </div>
 </template>
 
@@ -421,8 +391,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import Header from '@/components/Header.vue'
-import LearningProgressTracker from '@/components/LearningProgressTracker.vue'
-import SmartLearningAnalytics from '@/components/SmartLearningAnalytics.vue'
+// 已移除学习进度追踪和智能分析组件的引用
 import {
   Document,
   Download,
@@ -446,8 +415,7 @@ const currentPage = ref(1)
 const pageSize = ref(10)
 const showFilterModal = ref(false)
 const showDetailModal = ref(false)
-const showProgressTracker = ref(false)
-const showSmartAnalytics = ref(false)
+// 已移除进度追踪和智能分析相关变量
 const selectedRecord = ref(null)
 const smartAnalyticsRef = ref()
 
@@ -672,13 +640,7 @@ const exportRecords = () => {
 }
 
 // 🆕 新增方法
-const handleCloseProgressTracker = () => {
-  showProgressTracker.value = false
-}
-
-const handleCloseAnalytics = () => {
-  showSmartAnalytics.value = false
-}
+// 已移除进度追踪和智能分析相关函数
 
 const handleProgressUpdated = (progressData) => {
   ElMessage.success('学习进度已更新！')

@@ -36,7 +36,7 @@ SUPABASE_ANON_KEY=your-supabase-anon-key
 
 ```bash
 # .env 文件
-VITE_N8N_BASE_URL=http://localhost:5678
+VITE_N8N_BASE_URL=https://n8n-yethnxqt.ap-northeast-1.clawcloudrun.com
 VITE_SUPABASE_URL=your-supabase-url
 VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
 ```

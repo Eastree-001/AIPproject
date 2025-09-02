@@ -1,5 +1,5 @@
 <template>
-  <div id="app">
+  <div id="app-container" class="app-container">
     <router-view />
   </div>
 </template>
@@ -18,11 +18,20 @@
 body {
   font-family: 'Helvetica Neue', Helvetica, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', '微软雅黑', Arial, sans-serif;
   background: #ffffff;
+  
+}
+
+/* 全局缩放到80% */
+#app-container.app-container {
+  zoom: 0.75;
+  width: 100%;
   min-height: 100vh;
 }
 
-#app {
-  min-height: 100vh;
+/* 确保html和body不产生额外空间 */
+html {
+  height: 100%;
+ 
 }
 
 /* 全局样式 */
